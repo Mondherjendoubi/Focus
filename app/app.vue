@@ -5,6 +5,12 @@ const title = 'tutorex'
 const description = 'Your study buddy — start a focus session, keep your streak, see where your time actually goes.'
 const siteName = 'tutorex'
 
+// Absolute URLs for social crawlers (Facebook, LinkedIn, Twitter).
+// Relative paths often fail to preview — Facebook has been strict about
+// requiring fully-qualified URLs for og:image and og:url.
+const siteUrl = useRuntimeConfig().public.siteUrl.replace(/\/$/, '')
+const ogImageUrl = `${siteUrl}/og-image.png`
+
 useHead({
   htmlAttrs: {
     lang: 'en'
@@ -40,12 +46,21 @@ useSeoMeta({
   ogLocale: 'en_US',
   ogTitle: title,
   ogDescription: description,
-  // ogImage: '/og-image.png',  // add a 1200×630 png to /public and uncomment
+  ogUrl: siteUrl,
+  ogImage: {
+    url: ogImageUrl,
+    width: 1200,
+    height: 630,
+    alt: 'tutorex — your study buddy',
+    type: 'image/png'
+  },
 
-  twitterCard: 'summary',
+  // Large image card requires an og:image / twitter:image ≥ 300×157.
+  // Downgrade to 'summary' if you use a smaller image.
+  twitterCard: 'summary_large_image',
   twitterTitle: title,
-  twitterDescription: description
-  // twitterImage: '/og-image.png'
+  twitterDescription: description,
+  twitterImage: ogImageUrl
 })
 
 // Mirror the header nav into the mobile slideover; render nothing before

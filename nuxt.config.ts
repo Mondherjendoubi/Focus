@@ -20,7 +20,11 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       supabaseUrl: process.env.SUPABASE_URL,
-      supabaseKey: process.env.SUPABASE_KEY
+      supabaseKey: process.env.SUPABASE_KEY,
+      // Absolute site URL — used to build canonical + og:image URLs
+      // so social crawlers (Facebook, LinkedIn, Twitter) can find them.
+      // Set PUBLIC_SITE_URL on the deploy platform to your live domain.
+      siteUrl: process.env.PUBLIC_SITE_URL ?? 'http://localhost:3000'
     }
   },
 
