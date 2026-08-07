@@ -1,0 +1,53 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+
+@theme static {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Space Grotesk', 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+
+  /* tutorex-blue: warmer than Tailwind blue, richer at midtones.
+     Overrides the built-in blue ramp so Nuxt UI's `primary: 'blue'`
+     picks these up everywhere `text-primary`, `bg-primary`, etc. resolve. */
+  --color-blue-50: #EEF4FF;
+  --color-blue-100: #DAE6FF;
+  --color-blue-200: #BDD1FF;
+  --color-blue-300: #91B0FF;
+  --color-blue-400: #5A85FF;
+  --color-blue-500: #3565F5;
+  --color-blue-600: #2148D9;
+  --color-blue-700: #1A38A8;
+  --color-blue-800: #172D82;
+  --color-blue-900: #172759;
+  --color-blue-950: #0E183A;
+
+  /* Signature accent — used sparingly for the flash when a goal ring
+     hits 100%. Not for general use. */
+  --tutorex-highlight: #FFDB4D;
+}
+
+/* Micro-interactions. Every animation opts out under `prefers-reduced-motion`. */
+@keyframes tutorex-breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.015); }
+}
+@keyframes tutorex-pop {
+  0%   { transform: scale(0.92); }
+  60%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+@keyframes tutorex-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-breathe  { animation: tutorex-breathe 4s ease-in-out infinite; }
+.animate-pop      { animation: tutorex-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.animate-shimmer  { background-size: 200% 100%; animation: tutorex-shimmer 2.4s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-breathe,
+  .animate-pop,
+  .animate-shimmer { animation: none; }
+}
