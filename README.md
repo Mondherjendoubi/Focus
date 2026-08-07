@@ -49,10 +49,13 @@ The app runs at `http://localhost:3000`. Create an account at `/signup`, then la
 | Command | What it does |
 |---|---|
 | `npm run dev` | Start the dev server on port 3000 |
-| `npm run build` | Build for production |
-| `npm run preview` | Preview the production build locally |
+| `npm run build` | Generate the static SPA to `dist/` (alias of `nuxt generate`) |
+| `npm run generate` | Same as `build` — explicit name |
+| `npm run preview` | Preview the built site locally |
 | `npm run typecheck` | `nuxt typecheck` — the reliable code gate |
 | `npm run lint` | ESLint (broken on Node 20 — see requirements) |
+
+Deploy target is a **static site**: `npm run build` writes the SPA shell + client bundle to `dist/`. Point any static host (Cloudflare Pages, Netlify, container static build, etc.) at `dist/` as the output directory.
 
 ## Data model notes
 
