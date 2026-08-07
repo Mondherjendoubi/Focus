@@ -16,14 +16,22 @@ useHead({
     lang: 'en'
   },
   link: [
-    { rel: 'icon', href: '/favicon.ico' }
-    // Add these when the assets exist in /public:
-    // { rel: 'apple-touch-icon', href: '/apple-touch-icon.png', sizes: '180x180' }
-    // { rel: 'manifest', href: '/site.webmanifest' }
+    { rel: 'icon', href: '/favicon.ico' },
+    { rel: 'apple-touch-icon', href: '/apple-touch-icon.png', sizes: '180x180' },
+    // PWA — Android reads the manifest for name/icons/theme/display when the
+    // user chooses "Add to Home Screen". iOS ignores the manifest and uses
+    // the apple-* meta tags below instead.
+    { rel: 'manifest', href: '/site.webmanifest' }
   ],
   meta: [
     // Stop iOS from linkifying the timer digits ("25:00" → phone number).
-    { name: 'format-detection', content: 'telephone=no' }
+    { name: 'format-detection', content: 'telephone=no' },
+    // iOS home-screen: launch full-screen (no Safari chrome), set the label
+    // and the status-bar look. Android/Chrome uses the manifest instead.
+    { name: 'apple-mobile-web-app-capable', content: 'yes' },
+    { name: 'apple-mobile-web-app-title', content: 'tutorex' },
+    { name: 'apple-mobile-web-app-status-bar-style', content: 'default' },
+    { name: 'mobile-web-app-capable', content: 'yes' }
   ]
 })
 
