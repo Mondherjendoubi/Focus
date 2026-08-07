@@ -74,6 +74,26 @@ useSeoMeta({
 // Mirror the header nav into the mobile slideover; render nothing before
 // auth resolves so we never flash the logged-out shell at a returning user.
 const mobileOpen = ref(false)
+
+// Browser-tab timer: while a block is running, prepend the countdown to the
+// document title so the user sees it in the tab strip even after switching
+// tabs. Nulling the title lets Nuxt fall back to the page's own SEO title
+// (via the `titleTemplate` above), so as soon as the block ends the tab
+// snaps back to e.g. "Dashboard · tutorex".
+const timer = useActiveSession()
+useHead({
+  title: computed(() => {
+    const b = timer.block.value
+    if (!b) return null
+    if (timer.isPaused.value) return `Paused · ${title}`
+    const secs = Math.max(0, Math.floor(timer.remainingSeconds.value ?? timer.elapsedSeconds.value))
+    const m = Math.floor(secs / 60)
+    const s = secs % 60
+    const clock = `${m}:${s.toString().padStart(2, '0')}`
+    const prefix = b.kind === 'focus' ? '' : 'Break · '
+    return `${prefix}${clock} · ${title}`
+  })
+})
 </script>
 
 <template>

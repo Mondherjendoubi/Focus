@@ -18,22 +18,24 @@ import type { BlockKind, BlockPause, Session, SessionBlock, SessionStatus } from
  * accumulator would drift. Rendering is a UI concern (FA-008); this file
  * returns numbers.
  *
- * Not a singleton: caller instantiates it in the component that renders the
- * timer. Two instances would each own their own interval but would agree on
- * the DB state after `refresh()`.
+ * Shared state: session / block / pause / now live in `useState`, so any
+ * component that calls `useActiveSession` reads the same live values. This
+ * lets the app shell surface the timer (browser tab title, page badge) even
+ * while the user is on a page other than the Focus page. Each caller still
+ * runs its own tick interval — cheap, and cleanup is per-instance.
  */
 export function useActiveSession() {
   const supabase = useSupabase()
 
-  const session = ref<Session | null>(null)
-  const block = ref<SessionBlock | null>(null)
-  const pause = ref<BlockPause | null>(null)
+  const session = useState<Session | null>('active:session', () => null)
+  const block = useState<SessionBlock | null>('active:block', () => null)
+  const pause = useState<BlockPause | null>('active:pause', () => null)
 
   const loading = ref(false)
   const error = ref<string | null>(null)
 
   // Reactive "current time" — the interval writes here, computed reads here.
-  const now = ref(Date.now())
+  const now = useState<number>('active:now', () => Date.now())
   let intervalId: ReturnType<typeof setInterval> | null = null
 
   function startTicking() {
