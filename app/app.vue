@@ -1,28 +1,51 @@
 <script setup lang="ts">
 const { isLoggedIn, ready } = useAuth()
 
-useHead({
-  meta: [
-    { name: 'viewport', content: 'width=device-width, initial-scale=1' }
-  ],
-  link: [
-    { rel: 'icon', href: '/favicon.ico' }
-  ],
-  htmlAttrs: {
-    lang: 'en'
-  }
-})
-
 const title = 'tutorex'
 const description = 'Your study buddy — start a focus session, keep your streak, see where your time actually goes.'
+const siteName = 'tutorex'
+
+useHead({
+  htmlAttrs: {
+    lang: 'en'
+  },
+  link: [
+    { rel: 'icon', href: '/favicon.ico' }
+    // Add these when the assets exist in /public:
+    // { rel: 'apple-touch-icon', href: '/apple-touch-icon.png', sizes: '180x180' }
+    // { rel: 'manifest', href: '/site.webmanifest' }
+  ],
+  meta: [
+    // Stop iOS from linkifying the timer digits ("25:00" → phone number).
+    { name: 'format-detection', content: 'telephone=no' }
+  ]
+})
 
 useSeoMeta({
   title,
   titleTemplate: (t?: string) => (t && t !== title ? `${t} · ${title}` : title),
   description,
+  viewport: 'width=device-width, initial-scale=1, viewport-fit=cover',
+  // Match the header chrome on mobile browsers to the app theme.
+  themeColor: [
+    { content: '#EEF4FF', media: '(prefers-color-scheme: light)' },
+    { content: '#0E183A', media: '(prefers-color-scheme: dark)' }
+  ],
+  robots: 'index, follow',
+  applicationName: siteName,
+  author: 'tutorex',
+
+  ogSiteName: siteName,
+  ogType: 'website',
+  ogLocale: 'en_US',
   ogTitle: title,
   ogDescription: description,
-  twitterCard: 'summary'
+  // ogImage: '/og-image.png',  // add a 1200×630 png to /public and uncomment
+
+  twitterCard: 'summary',
+  twitterTitle: title,
+  twitterDescription: description
+  // twitterImage: '/og-image.png'
 })
 
 // Mirror the header nav into the mobile slideover; render nothing before
