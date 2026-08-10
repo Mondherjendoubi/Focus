@@ -75,25 +75,29 @@ useSeoMeta({
 // auth resolves so we never flash the logged-out shell at a returning user.
 const mobileOpen = ref(false)
 
-// Browser-tab timer: while a block is running, prepend the countdown to the
-// document title so the user sees it in the tab strip even after switching
-// tabs. Nulling the title lets Nuxt fall back to the page's own SEO title
-// (via the `titleTemplate` above), so as soon as the block ends the tab
-// snaps back to e.g. "Dashboard · tutorex".
+// Browser-tab timer: while a block is running, the tab shows the countdown so
+// the user can watch it from another tab.
+//
+// `tagPriority: 'high'` is load-bearing. Every page sets its own title, and a
+// page's setup runs after app.vue's — at equal weight unhead resolves a title
+// collision in favour of the last entry registered, so without the bump the
+// page title silently buries the clock on every route.
+//
+// Returning `undefined` (not `null`, which still emits a title tag, just an
+// empty one that would then outrank the page) drops this entry entirely, so
+// the moment the block ends the tab snaps back to e.g. "Dashboard · tutorex".
+// The bare clock is returned without the site name — `titleTemplate` above
+// appends it, and returning it here too would render "24:59 · tutorex · tutorex".
 const timer = useActiveSession()
 useHead({
   title: computed(() => {
     const b = timer.block.value
-    if (!b) return null
-    if (timer.isPaused.value) return `Paused · ${title}`
-    const secs = Math.max(0, Math.floor(timer.remainingSeconds.value ?? timer.elapsedSeconds.value))
-    const m = Math.floor(secs / 60)
-    const s = secs % 60
-    const clock = `${m}:${s.toString().padStart(2, '0')}`
-    const prefix = b.kind === 'focus' ? '' : 'Break · '
-    return `${prefix}${clock} · ${title}`
+    if (b === null) return undefined
+    if (timer.isPaused.value) return 'Paused'
+    const clock = formatClock(timer.remainingSeconds.value ?? timer.elapsedSeconds.value)
+    return b.kind === 'focus' ? clock : `Break · ${clock}`
   })
-})
+}, { tagPriority: 'high' })
 </script>
 
 <template>
