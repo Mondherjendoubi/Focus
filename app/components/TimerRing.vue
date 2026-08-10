@@ -22,13 +22,31 @@ import type { BlockKind } from '~/types/database'
  * ring — it comes from `topics.color` and is the one hex the theme allows.
  */
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   elapsedSeconds: number
   plannedSeconds: number | null
   kind: BlockKind
   topicColor?: string | null
   paused?: boolean
-}>()
+  /**
+   * `lg` grows the ring to 320px for the FA-020 desktop workspace. The SVG
+   * geometry is untouched — the viewBox is already 240 and scales — so this
+   * only swaps the wrapper size and the clock's type scale.
+   */
+  size?: 'md' | 'lg'
+}>(), {
+  size: 'md'
+})
+
+const ringSizeClass = computed(() =>
+  props.size === 'lg' ? 'size-64 sm:size-72 lg:size-80' : 'size-64 sm:size-72'
+)
+
+const clockSizeClass = computed(() =>
+  props.size === 'lg'
+    ? 'text-5xl sm:text-6xl lg:text-[62px] lg:leading-none'
+    : 'text-5xl sm:text-6xl'
+)
 
 // Standard SVG progress-ring geometry. Radius picked so the SVG box is
 // 240x240; the wrapping div grows the visual to `size-64` / `size-72`
@@ -114,7 +132,8 @@ const ariaLabel = computed(() => {
     </div>
 
     <div
-      class="relative size-64 sm:size-72"
+      class="relative"
+      :class="ringSizeClass"
       role="img"
       :aria-label="ariaLabel"
     >
@@ -152,8 +171,8 @@ const ariaLabel = computed(() => {
 
       <div class="absolute inset-0 flex flex-col items-center justify-center gap-1">
         <span
-          class="text-5xl sm:text-6xl font-semibold tabular-nums text-highlighted"
-          :class="paused ? 'opacity-70' : ''"
+          class="font-semibold tabular-nums text-highlighted"
+          :class="[clockSizeClass, paused ? 'opacity-70' : '']"
         >
           {{ formatClock(elapsedSeconds) }}
         </span>

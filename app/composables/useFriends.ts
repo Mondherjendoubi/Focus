@@ -1,5 +1,5 @@
 import type { PostgrestError } from '@supabase/supabase-js'
-import type { FriendEdge, FriendStats, ProfileLookup } from '~/types/database'
+import type { FriendDay, FriendEdge, FriendStats, ProfileLookup } from '~/types/database'
 
 /**
  * Friends (FA-018). Requires `Schema/02_social.sql` to have been run.
@@ -68,6 +68,8 @@ export function useFriends() {
   const edges = useState<FriendEdge[]>('friends:edges', () => [])
   /** Keyed by `friend_id`. Absent = not loaded yet or no access. */
   const stats = useState<Record<string, FriendStats>>('friends:stats', () => ({}))
+  /** Keyed by `friend_id`. Seven entries when present, oldest first. */
+  const days = useState<Record<string, FriendDay[]>>('friends:days', () => ({}))
   const loading = useState<boolean>('friends:loading', () => false)
   const error = useState<string | null>('friends:error', () => null)
   const loaded = useState<boolean>('friends:loaded', () => false)
@@ -162,9 +164,33 @@ export function useFriends() {
     await loadEdges()
     if (error.value !== null) return
 
-    // Aggregates only for accepted friends — the RPC returns nothing for
+    // Aggregates only for accepted friends — the RPCs return nothing for
     // anyone else, so asking would be a wasted round trip per pending row.
-    await Promise.all(accepted.value.map(edge => loadStats(edge.friend_id)))
+    // Both calls for one friend go together, so a row never renders its totals
+    // with somebody else's sparkline still filling in beside it.
+    await Promise.all(
+      accepted.value.map(edge =>
+        Promise.all([loadStats(edge.friend_id), loadDays(edge.friend_id)])
+      )
+    )
+  }
+
+  /** Seven daily squares for one friend. Silent on failure, like `loadStats`. */
+  async function loadDays(friendId: string) {
+    const { data, error: err } = await supabase.rpc('friend_days', { p_friend_id: friendId })
+    if (err) return
+
+    const rows = (data ?? []) as Array<Record<string, unknown>>
+    if (rows.length === 0) return
+
+    days.value = {
+      ...days.value,
+      [friendId]: rows.map(row => ({
+        local_day: String(row.local_day ?? ''),
+        focus_seconds: num(row.focus_seconds),
+        goal_met: row.goal_met === true
+      }))
+    }
   }
 
   /**
@@ -224,14 +250,28 @@ export function useFriends() {
     await load()
   }
 
-  /** Only the addressee can do this — the policy and the guard trigger agree. */
+  /**
+   * Only the addressee can do this — the policy and the guard trigger agree.
+   *
+   * `.select()` is not decoration. When RLS filters the target row out,
+   * PostgREST reports **success with zero rows affected** and no error, so
+   * checking `error` alone lets a refused accept look like a completed one:
+   * the click does nothing, says nothing, and the request sits there still
+   * reading "waiting for them to accept". Requiring a returned row turns that
+   * silence into a sentence.
+   */
   async function accept(friendshipId: string) {
-    const { error: err } = await supabase
+    const { data, error: err } = await supabase
       .from('friendships')
       .update({ status: 'accepted' })
       .eq('id', friendshipId)
+      .select()
 
     if (err) fail(err)
+    if (!data || data.length === 0) {
+      fail(new Error('That request could not be accepted — it may have been withdrawn. Reload and try again.'))
+    }
+
     await load()
   }
 
@@ -241,12 +281,19 @@ export function useFriends() {
    * granting the aggregate access it was meant to end.
    */
   async function remove(friendshipId: string) {
-    const { error: err } = await supabase
+    // Same trap as `accept`: a delete filtered out by RLS succeeds with zero
+    // rows and no error, so the row would stay on screen with nothing said.
+    const { data, error: err } = await supabase
       .from('friendships')
       .delete()
       .eq('id', friendshipId)
+      .select()
 
     if (err) fail(err)
+    if (!data || data.length === 0) {
+      fail(new Error('That request could not be removed. Reload and try again.'))
+    }
+
     await load()
   }
 
@@ -260,12 +307,14 @@ export function useFriends() {
     isNewlyAccepted,
     markSeen,
     stats,
+    days,
     loading,
     error,
     loaded,
     load,
     loadEdges,
     loadStats,
+    loadDays,
     findByUsername,
     existingEdgeWith,
     sendRequest,

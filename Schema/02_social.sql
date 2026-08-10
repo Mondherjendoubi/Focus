@@ -4,6 +4,15 @@
 -- RUN THIS IN THE SUPABASE SQL EDITOR BEFORE THE SOCIAL UI WILL WORK.
 -- Idempotent: safe to run more than once.
 --
+-- ⚠️  ORDER MATTERS: IF YOU RE-RUN THIS FILE, RE-RUN 03_avatars.sql AFTER IT.
+--
+-- `find_profile_by_username` and `my_friends` are defined HERE and then
+-- redefined by 03_avatars.sql with two extra columns (`avatar_url`,
+-- `responded_at`). Running this file second silently downgrades both back to
+-- the versions below — friend avatars disappear and the "accepted" indicators
+-- stop working, with no error to explain why, because the functions still
+-- exist and still return rows. Always finish with the highest-numbered file.
+--
 -- ---------------------------------------------------------------------
 -- THE DESIGN RULE THIS FILE EXISTS TO PROTECT
 --

@@ -28,7 +28,6 @@ const {
   update,
   archive,
   restore,
-  move,
   descendantsOf
 } = useTopics()
 
@@ -143,30 +142,21 @@ async function doRestore(topic: Topic) {
   }
 }
 
-async function onMoveUp(topic: Topic) {
-  try {
-    await move(topic.id, 'up')
-  } catch (err) {
-    toast.add({
-      title: 'Could not reorder',
-      description: (err as Error).message,
-      color: 'error',
-      icon: 'i-lucide-triangle-alert'
-    })
-  }
-}
+// Manual reorder (`useTopics.move`) is intentionally absent: the 2a card grid
+// has nowhere to put up/down controls. Cards still order by `position`, and
+// `move` remains on the composable, so restoring it is a UI decision rather
+// than a rewrite.
 
-async function onMoveDown(topic: Topic) {
-  try {
-    await move(topic.id, 'down')
-  } catch (err) {
-    toast.add({
-      title: 'Could not reorder',
-      description: (err as Error).message,
-      color: 'error',
-      icon: 'i-lucide-triangle-alert'
-    })
-  }
+/**
+ * FA-021 renders one card per TOP-LEVEL topic, with its children listed inside.
+ * `v_topic_rollup` already sums descendants into a parent's total, so the card
+ * grid shows every topic's time exactly once — listing children as cards too
+ * would double-count the same hours on screen.
+ */
+const rootTopics = computed(() => active.value.filter(topic => topic.parent_id === null))
+
+function childrenOf(parentId: string) {
+  return active.value.filter(topic => topic.parent_id === parentId)
 }
 
 const initialLoad = computed(() => loading.value && !loaded.value)
@@ -176,13 +166,13 @@ const isEmpty = computed(() => loaded.value && !error.value && active.value.leng
 
 <template>
   <UContainer class="py-8 sm:py-10">
-    <div class="flex flex-col gap-6">
+    <div class="flex min-h-[calc(100vh-8rem)] flex-col gap-6">
       <header class="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 class="text-2xl sm:text-3xl font-semibold text-highlighted">
+          <h1 class="font-display text-2xl font-semibold tracking-tight text-highlighted sm:text-[26px]">
             Topics
           </h1>
-          <p class="mt-1 text-sm text-muted max-w-xl">
+          <p class="mt-1.5 max-w-xl text-sm text-muted">
             Everything you track time against — a subject, a project, a book.
             Group related work under a parent to see combined totals.
           </p>
@@ -227,31 +217,45 @@ const isEmpty = computed(() => loaded.value && !error.value && active.value.leng
       />
 
       <template v-else>
-        <section>
-          <div
-            v-if="active.length === 0"
-            class="rounded-lg border border-dashed border-default px-4 py-6 text-sm text-muted text-center"
-          >
-            No active topics. Create one, or restore one from below.
-          </div>
-          <TopicTree
-            v-else
-            :topics="active"
+        <!-- FA-021 — card grid. Three across on wide desktop, matching the
+             design's `repeat(3,1fr)`; the sidebar takes 240px of the viewport,
+             so the third column only earns its place at `xl`. -->
+        <section
+          class="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3"
+          style="align-content: start"
+        >
+          <TopicCard
+            v-for="topic in rootTopics"
+            :key="topic.id"
+            :topic="topic"
+            :children="childrenOf(topic.id)"
             :rollups="rollups"
             @edit="openEdit"
             @archive="confirmArchive"
-            @move-up="onMoveUp"
-            @move-down="onMoveDown"
           />
+
+          <!-- The dashed tile is the primary create affordance in this layout;
+               the header button stays for when the grid is scrolled past. -->
+          <button
+            type="button"
+            class="flex min-h-[180px] flex-col items-center justify-center gap-2 rounded-xl border-[1.5px] border-dashed border-accented text-sm font-medium text-muted transition hover:border-primary hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            @click="openCreate"
+          >
+            <UIcon
+              name="i-lucide-plus"
+              class="size-5"
+            />
+            New topic
+          </button>
         </section>
 
         <section
           v-if="archived.length > 0"
-          class="mt-4"
+          class="mt-auto pt-2"
         >
           <button
             type="button"
-            class="flex items-center gap-2 text-sm font-medium text-muted hover:text-highlighted transition"
+            class="flex items-center gap-2 text-[13px] font-medium text-muted hover:text-highlighted transition"
             :aria-expanded="showArchived"
             @click="showArchived = !showArchived"
           >

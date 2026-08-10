@@ -106,50 +106,88 @@ useHead({
 
 <template>
   <UApp>
-    <UHeader v-model:open="mobileOpen">
-      <template #left>
-        <NuxtLink
-          to="/"
-          aria-label="tutorex home"
-          class="flex items-center"
+    <!-- FA-020 — desktop workspace shell.
+         Two mutually exclusive navigations, split at `lg`: the sidebar below,
+         and the original UHeader + slideover above. `lg:hidden` / `hidden lg:flex`
+         rather than a JS breakpoint, so there is no width at which both render
+         and none at which neither does. -->
+    <!-- `bg-muted` is slate-50 (`neutral: 'slate'` in app.config), which is the
+         prototype's #F8FAFC page. Without it the page and the cards are both
+         white and the cards read as nothing but hairlines.
+         Dark stays on `bg-default`: `bg-muted` is neutral-800 there, LIGHTER
+         than the neutral-900 cards sit on, which would invert the elevation. -->
+    <div
+      v-if="ready && isLoggedIn"
+      class="flex min-h-screen bg-muted dark:bg-default"
+    >
+      <AppSidebar class="hidden lg:flex" />
+
+      <div class="flex min-w-0 flex-1 flex-col">
+        <UHeader
+          v-model:open="mobileOpen"
+          class="lg:hidden"
         >
-          <AppLogo />
-        </NuxtLink>
-      </template>
+          <template #left>
+            <NuxtLink
+              to="/"
+              aria-label="tutorex home"
+              class="flex items-center"
+            >
+              <AppLogo />
+            </NuxtLink>
+          </template>
 
-      <template
-        v-if="ready && isLoggedIn"
-        #default
-      >
-        <AppNav />
-      </template>
+          <template #right>
+            <UColorModeButton />
+            <UserMenu />
+          </template>
 
-      <template #right>
-        <UColorModeButton />
+          <template #body>
+            <AppNav orientation="vertical" />
+          </template>
+        </UHeader>
 
-        <template v-if="ready && isLoggedIn">
-          <UserMenu />
+        <!-- No footer inside the app shell: the prototype's main column runs
+             to the bottom of the viewport, and a copyright bar under a running
+             timer is chrome the design deliberately does not have. The signed
+             -out shell below keeps it. -->
+        <UMain class="flex-1">
+          <NuxtPage />
+        </UMain>
+      </div>
+    </div>
+
+    <!-- Signed out, or auth still resolving: no navigation to show, so the
+         plain shell stays. Rendering the sidebar here would flash an empty
+         rail at someone on the login page. -->
+    <template v-else>
+      <UHeader v-model:open="mobileOpen">
+        <template #left>
+          <NuxtLink
+            to="/"
+            aria-label="tutorex home"
+            class="flex items-center"
+          >
+            <AppLogo />
+          </NuxtLink>
         </template>
-      </template>
 
-      <template
-        v-if="ready && isLoggedIn"
-        #body
-      >
-        <AppNav orientation="vertical" />
-      </template>
-    </UHeader>
+        <template #right>
+          <UColorModeButton />
+        </template>
+      </UHeader>
 
-    <UMain>
-      <NuxtPage />
-    </UMain>
+      <UMain>
+        <NuxtPage />
+      </UMain>
 
-    <UFooter>
-      <template #left>
-        <p class="text-sm text-muted">
-          © {{ new Date().getFullYear() }} tutorex
-        </p>
-      </template>
-    </UFooter>
+      <UFooter>
+        <template #left>
+          <p class="text-sm text-muted">
+            © {{ new Date().getFullYear() }} tutorex
+          </p>
+        </template>
+      </UFooter>
+    </template>
   </UApp>
 </template>

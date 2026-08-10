@@ -146,6 +146,17 @@ watch(() => session.value?.template_id ?? null, async (templateId) => {
   await loadSessionTemplateBlocks(templateId)
 }, { immediate: true })
 
+/**
+ * Name of the template driving this session, for the meta row under the title
+ * ("Mathematics · Pomodoro ×4" in the 1c design). Null for an ad-hoc session,
+ * which then shows the topic alone rather than a dangling separator.
+ */
+const currentTemplateName = computed<string | null>(() => {
+  const id = session.value?.template_id ?? null
+  if (id === null) return null
+  return templates.value.find(item => item.id === id)?.name ?? null
+})
+
 const currentTemplateBlock = computed<SessionTemplateBlock | null>(() => {
   const b = block.value
   if (b === null || b.template_block_id === null) return null
@@ -459,8 +470,15 @@ const timerAnnouncement = computed(() => {
 </script>
 
 <template>
-  <UContainer class="py-6 sm:py-10">
-    <div class="mx-auto flex max-w-2xl flex-col gap-6">
+  <UContainer class="py-6 sm:py-8 lg:px-10">
+    <!-- The workspace needs the full main column: `1fr 380px` inside a 672px
+         `max-w-2xl` leaves the timer pane under 270px, which is narrower than
+         the 320px ring it has to hold. Every OTHER state here is a single
+         centred card and still wants the narrow measure. -->
+    <div
+      class="flex flex-col gap-6"
+      :class="renderState === 'running' ? 'w-full' : 'mx-auto max-w-2xl'"
+    >
       <!--
         Screen-reader-only live region for timer state transitions. Polite so
         the announcement never interrupts anything the user is doing, and only
@@ -612,60 +630,92 @@ const timerAnnouncement = computed(() => {
         </div>
       </UCard>
 
-      <UCard
+      <!-- FA-020 — desktop workspace. Below `lg` this collapses to the single
+           centred column it has always been; the rail stacks underneath. -->
+      <div
         v-else-if="renderState === 'running' && block"
-        :ui="{ body: 'sm:p-8' }"
-        :class="block.kind !== 'focus' ? 'bg-elevated/30' : ''"
+        class="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px]"
       >
-        <div class="flex flex-col items-center gap-6">
-          <div class="flex flex-col items-center gap-1 text-center">
-            <h1 class="text-lg font-semibold text-highlighted sm:text-xl">
-              {{ runningTitle }}
-            </h1>
-            <div class="flex flex-wrap items-center justify-center gap-2 text-sm text-muted">
-              <TopicBadge
-                v-if="currentTopic"
-                :topic="currentTopic"
-                size="sm"
-                muted
-              />
-              <span v-else>No topic</span>
-              <span
-                v-if="templateProgress"
-                aria-hidden="true"
-              >-</span>
-              <span v-if="templateProgress">
-                Step {{ Math.min((block.position + 1), templateProgress.total) }}
-                of {{ templateProgress.total }}
-              </span>
+        <UCard
+          :ui="{ body: 'sm:p-8 lg:h-full lg:flex lg:items-center lg:justify-center' }"
+          :class="block.kind !== 'focus' ? 'bg-elevated/30' : ''"
+        >
+          <div class="flex flex-col items-center gap-6">
+            <div class="flex flex-col items-center gap-1 text-center">
+              <h1 class="text-lg font-semibold text-highlighted sm:text-xl lg:text-[22px]">
+                {{ runningTitle }}
+              </h1>
+              <div class="flex flex-wrap items-center justify-center gap-2 text-sm text-muted">
+                <TopicBadge
+                  v-if="currentTopic"
+                  :topic="currentTopic"
+                  size="sm"
+                  muted
+                />
+                <span v-else>No topic</span>
+
+                <!-- Template name, per the design's "Mathematics · Pomodoro ×4". -->
+                <template v-if="currentTemplateName">
+                  <span aria-hidden="true">·</span>
+                  <span>{{ currentTemplateName }}</span>
+                </template>
+
+                <!-- The step counter only appears below `lg`. On desktop the
+                     rail's plan card carries it, beside the steps it counts. -->
+                <template v-if="templateProgress">
+                  <span
+                    aria-hidden="true"
+                    class="lg:hidden"
+                  >·</span>
+                  <span class="lg:hidden">
+                    Step {{ Math.min((block.position + 1), templateProgress.total) }}
+                    of {{ templateProgress.total }}
+                  </span>
+                </template>
+              </div>
+            </div>
+
+            <TimerRing
+              :elapsed-seconds="Math.floor(elapsedSeconds)"
+              :planned-seconds="block.planned_seconds"
+              :kind="block.kind"
+              :topic-color="currentTopic?.color ?? null"
+              :paused="isPaused"
+              size="lg"
+            />
+
+            <SessionControls
+              :paused="isPaused"
+              :loading="activeLoading"
+              @pause="onPause"
+              @resume="onResume"
+              @end-block="openEndBlockPrompt"
+              @end-session="openEndPrompt"
+            />
+
+            <div
+              v-if="currentTemplateBlock?.label"
+              class="text-center text-sm text-muted"
+            >
+              {{ currentTemplateBlock.label }}
             </div>
           </div>
+        </UCard>
 
-          <TimerRing
+        <!-- Right rail. Each card hides itself when it has nothing to say, so a
+             session with no template and no earlier work leaves just the goal. -->
+        <div class="flex min-h-0 flex-col gap-5">
+          <DailyGoalRailCard />
+
+          <SessionPlanCard
+            :blocks="sessionTemplateBlocks"
+            :position="templatePosition"
             :elapsed-seconds="Math.floor(elapsedSeconds)"
-            :planned-seconds="block.planned_seconds"
-            :kind="block.kind"
-            :topic-color="currentTopic?.color ?? null"
-            :paused="isPaused"
           />
 
-          <SessionControls
-            :paused="isPaused"
-            :loading="activeLoading"
-            @pause="onPause"
-            @resume="onResume"
-            @end-block="openEndBlockPrompt"
-            @end-session="openEndPrompt"
-          />
-
-          <div
-            v-if="currentTemplateBlock?.label"
-            class="text-center text-sm text-muted"
-          >
-            {{ currentTemplateBlock.label }}
-          </div>
+          <EarlierTodayCard :exclude-session-id="session?.id ?? null" />
         </div>
-      </UCard>
+      </div>
     </div>
 
     <div

@@ -313,6 +313,17 @@ export interface ProfileLookup {
  * same as a friend with no data — the caller must not render either as zeros.
  * `bigint` columns arrive from PostgREST as strings; coerce before arithmetic.
  */
+/**
+ * One square of a friend's week, from `friend_days()`. Always seven rows,
+ * oldest first — the RPC generates the span, so gaps are real zeroes rather
+ * than missing entries the client has to guess at.
+ */
+export interface FriendDay {
+  local_day: LocalDay
+  focus_seconds: number
+  goal_met: boolean
+}
+
 export interface FriendStats {
   week_seconds: number
   prev_week_seconds: number

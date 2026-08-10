@@ -2,12 +2,20 @@
 import type { FriendEdge } from '~/types/database'
 
 /**
- * One pending request, in either direction.
+ * A pending request, in the compact row shape the 3b table uses.
  *
- * Incoming gets Accept / Decline; outgoing gets Cancel. Both "decline" and
- * "cancel" delete the same edge — there is no soft state between them, and
- * keeping a declined row around would keep granting the aggregate access it
- * was meant to end.
+ * Incoming requests are banners on the page itself now, so in practice this
+ * renders the **sent** list. The incoming branch stays for the case where the
+ * banners are not on screen.
+ *
+ * Kept to two lines on purpose. The earlier version stacked name, "waiting for
+ * them to accept", and "sent 3h ago" — three lines where the middle one repeats
+ * the section heading above it. Identity on top, timing underneath, state as a
+ * badge, action on the right.
+ *
+ * Decline and Cancel are the same operation: delete the edge. There is no soft
+ * state between them, and a kept-but-declined row would keep granting the
+ * access it was meant to end.
  */
 const props = defineProps<{
   edge: FriendEdge
@@ -26,42 +34,45 @@ const name = computed(() => {
 })
 
 const isIncoming = computed(() => props.edge.direction === 'incoming')
+
+/** `@handle · sent 3h ago`, collapsing to just the timing when unset. */
+const subtitle = computed(() => {
+  const sent = `sent ${relativeTime(props.edge.created_at)}`
+  return props.edge.username ? `@${props.edge.username} · ${sent}` : sent
+})
 </script>
 
 <template>
-  <li class="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-    <div class="flex min-w-0 items-center gap-3">
-      <UserAvatar
-        :name="edge.display_name"
-        :username="edge.username"
-        :src="edge.avatar_url"
-        size="sm"
-      />
-      <div class="min-w-0">
-        <p class="truncate text-sm font-medium text-highlighted">
-          {{ name }}
-        </p>
-        <p class="text-xs text-muted">
-        <template v-if="isIncoming">
-          wants to follow your progress
-        </template>
-        <template v-else>
-          waiting for them to accept
-        </template>
-        </p>
-        <!-- How long it has been pending. An outgoing request with no age reads
-             as "just sent" forever, so you cannot tell a request from an hour
-             ago from one they have been sitting on for a fortnight. -->
-        <p class="text-xs text-dimmed">
-          sent {{ relativeTime(edge.created_at) }}
-        </p>
-      </div>
+  <li class="flex items-center gap-3 px-4 py-3">
+    <UserAvatar
+      :name="edge.display_name"
+      :username="edge.username"
+      :src="edge.avatar_url"
+      size="sm"
+    />
+
+    <div class="min-w-0 flex-1">
+      <p class="truncate text-[13px] font-semibold text-highlighted">
+        {{ name }}
+      </p>
+      <p class="truncate text-[11px] text-dimmed">
+        {{ subtitle }}
+      </p>
     </div>
 
-    <div class="flex items-center gap-2">
+    <UBadge
+      v-if="!isIncoming"
+      color="neutral"
+      variant="subtle"
+      size="sm"
+      class="shrink-0"
+    >
+      Pending
+    </UBadge>
+
+    <div class="flex shrink-0 items-center gap-1">
       <UButton
         v-if="isIncoming"
-        icon="i-lucide-check"
         size="xs"
         :loading="busy"
         :disabled="busy"
