@@ -26,6 +26,8 @@ import type { BlockKind, BlockPause, Session, SessionBlock, SessionStatus } from
  */
 export function useActiveSession() {
   const supabase = useSupabase()
+  const { isLoggedIn } = useAuth()
+  const { profile, load: loadProfile } = useProfile()
 
   const session = useState<Session | null>('active:session', () => null)
   const block = useState<SessionBlock | null>('active:block', () => null)
@@ -105,6 +107,33 @@ export function useActiveSession() {
   /** Open pause = paused. The `pause` ref is pre-filtered to open rows. */
   const isPaused: ComputedRef<boolean> = computed(() => pause.value !== null)
 
+  /**
+   * True when the open block was started on an earlier day — i.e. the user
+   * closed the tab mid-session and never came back.
+   *
+   * `ended_at is null` alone cannot tell "running" from "abandoned three weeks
+   * ago", and `elapsedSeconds` derives from `now - started_at`, so without this
+   * the restore path renders a forgotten block as a live timer reading
+   * something like `504:23:11`. That is alarming, and it invites the user to
+   * "resume" a block whose recorded time is meaningless.
+   *
+   * The test is exact rather than a guessed hour threshold: `local_day` is
+   * stamped by the `blocks_local_day` trigger BEFORE insert, so even an open
+   * row carries the server's idea of which day it began — and that is compared
+   * against today in the profile's timezone, never the browser's.
+   */
+  const isStale: ComputedRef<boolean> = computed(() => {
+    const b = block.value
+    if (b === null || b.local_day === null) return false
+
+    const timezone = profile.value?.timezone
+    // Without a timezone there is no honest way to name "today", and guessing
+    // would flag a legitimate late-night block as abandoned. Say no instead.
+    if (!timezone) return false
+
+    return b.local_day !== todayLocalDay(timezone)
+  })
+
   // ---------------------------------------------------------------------
   // Restore — the truth-from-DB path, also used to reconcile after failures
   // ---------------------------------------------------------------------
@@ -116,9 +145,17 @@ export function useActiveSession() {
    * here; a stray one would be redundant and silently misleading.
    */
   async function refresh() {
+    // Nothing here is readable while signed out — RLS returns `[]` for every
+    // one of these. Skipping keeps the login and signup pages from firing three
+    // pointless queries each, and `app.vue` calls this on every page load.
+    if (!isLoggedIn.value) return
+
     loading.value = true
     error.value = null
     try {
+      // `isStale` needs the profile's timezone to name today.
+      if (!profile.value) await loadProfile()
+
       const [sessionRes, blockRes, pauseRes] = await Promise.all([
         supabase.from('sessions').select('*').eq('status', 'active').maybeSingle(),
         supabase.from('session_blocks').select('*').is('ended_at', null).maybeSingle(),
@@ -316,6 +353,7 @@ export function useActiveSession() {
     elapsedSeconds,
     remainingSeconds,
     isPaused,
+    isStale,
     loading,
     error,
     refresh,

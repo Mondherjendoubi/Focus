@@ -9,7 +9,8 @@ const items = computed<NavigationMenuItem[]>(() => [
   { label: 'Focus', to: '/', icon: 'i-lucide-timer' },
   { label: 'Dashboard', to: '/dashboard', icon: 'i-lucide-chart-column' },
   { label: 'Topics', to: '/topics', icon: 'i-lucide-tags' },
-  { label: 'History', to: '/history', icon: 'i-lucide-history' }
+  { label: 'History', to: '/history', icon: 'i-lucide-history' },
+  { label: 'Friends', to: '/friends', icon: 'i-lucide-users' }
 ])
 </script>
 

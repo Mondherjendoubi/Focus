@@ -1,4 +1,4 @@
-import type { LocalDay } from '~/types/database'
+import type { LocalDay, Timestamp } from '~/types/database'
 
 /**
  * Day boundaries in the profile's timezone.
@@ -95,6 +95,69 @@ export function lastNDays(n: number, timezone: string): LocalDay[] {
   }
 
   return days
+}
+
+/** Hour-of-day formatters are as costly to build as the day ones; cache them too. */
+const hourFormatters = new Map<string, Intl.DateTimeFormat>()
+
+function hourFormatter(timezone: string): Intl.DateTimeFormat {
+  let formatter = hourFormatters.get(timezone)
+  if (!formatter) {
+    // `hourCycle: 'h23'` so midnight is 00 and not 24 — `hour12: false` alone
+    // still yields '24' in some locales.
+    formatter = new Intl.DateTimeFormat('en-GB', {
+      timeZone: timezone,
+      hour: '2-digit',
+      hourCycle: 'h23'
+    })
+    hourFormatters.set(timezone, formatter)
+  }
+  return formatter
+}
+
+/**
+ * The hour (0–23) an instant falls on in `timezone`, or null if it is not a
+ * parseable timestamp.
+ *
+ * Same sanctioned exception as `toLocalDay`, for the same reason: `started_at`
+ * is a `timestamptz` and no view exposes an hour column for it, so to ask "when
+ * does this user study" the browser has to name the hour — and the browser's
+ * own zone is not the answer. `Intl` owns the DST and half-hour-offset rules.
+ */
+export function localHour(instant: Timestamp | null | undefined, timezone: string): number | null {
+  if (typeof instant !== 'string' || instant === '') return null
+
+  const date = new Date(instant)
+  if (Number.isNaN(date.getTime())) return null
+
+  const parsed = Number(hourFormatter(timezone).format(date))
+  return Number.isInteger(parsed) && parsed >= 0 && parsed <= 23 ? parsed : null
+}
+
+/**
+ * Number of days in the calendar month `localDay` falls in.
+ *
+ * Day 0 of the *next* month is the last day of this one, which is the standard
+ * trick and is leap-year correct without a special case for February.
+ */
+export function daysInMonthOf(localDay: LocalDay): number {
+  const date = parseLocalDay(localDay)
+  if (!date) return 30
+
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate()
+}
+
+/**
+ * Whole days from `from` to `to`, inclusive of both ends — so a window that
+ * starts today is 1 day elapsed, not 0. Returns 0 if either label is malformed.
+ */
+export function daysElapsedInclusive(from: LocalDay, to: LocalDay): number {
+  const start = parseLocalDay(from)
+  const end = parseLocalDay(to)
+  if (!start || !end) return 0
+
+  const diff = Math.round((end.getTime() - start.getTime()) / 86_400_000)
+  return diff < 0 ? 0 : diff + 1
 }
 
 /**

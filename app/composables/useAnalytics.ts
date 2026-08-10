@@ -90,12 +90,49 @@ export interface BestHours {
   peakHour: number | null
 }
 
+/**
+ * Mean self-reported focus per part of the day.
+ *
+ * Four buckets rather than 24: ratings are sparse — one per session, not one
+ * per block — so hourly means would mostly be drawn from a single session and
+ * would read as noise dressed up as insight.
+ */
+export interface DaypartRating {
+  key: string
+  label: string
+  /** null when no session in that daypart carried a rating. Never 0. */
+  meanRating: number | null
+  count: number
+  focusSeconds: number
+}
+
+/** Hour ranges are inclusive. `night` wraps midnight and is handled explicitly. */
+const DAYPARTS: ReadonlyArray<{ key: string, label: string, from: number, to: number }> = [
+  { key: 'morning', label: 'Morning', from: 5, to: 11 },
+  { key: 'afternoon', label: 'Afternoon', from: 12, to: 16 },
+  { key: 'evening', label: 'Evening', from: 17, to: 21 },
+  { key: 'night', label: 'Night', from: 22, to: 4 }
+]
+
+function daypartFor(hour: number): string {
+  for (const part of DAYPARTS) {
+    const inRange = part.from <= part.to
+      ? hour >= part.from && hour <= part.to
+      // The wrapping bucket: 22, 23, 0, 1, 2, 3, 4.
+      : hour >= part.from || hour <= part.to
+    if (inRange) return part.key
+  }
+  return 'night'
+}
+
 export interface AnalyticsData {
   range: Ref<AnalyticsRange>
   quality: Ref<FocusQuality | null>
   consistency: Ref<Consistency | null>
   efficiency: Ref<Efficiency | null>
   bestHours: Ref<BestHours | null>
+  /** Always four entries, in day order, even when every one is empty. */
+  daypartRatings: Ref<DaypartRating[]>
   timezone: Ref<string>
   pending: Ref<boolean>
   /** Message from `toMessage()` when any read fails, else null. */
@@ -134,6 +171,7 @@ export function useAnalytics(initialRange: AnalyticsRange = 30): AnalyticsData {
   const consistency = ref<Consistency | null>(null)
   const efficiency = ref<Efficiency | null>(null)
   const bestHours = ref<BestHours | null>(null)
+  const daypartRatings = ref<DaypartRating[]>([])
   const timezone = ref('UTC')
   const pending = ref(true)
   const error = ref<string | null>(null)
@@ -176,7 +214,7 @@ export function useAnalytics(initialRange: AnalyticsRange = 30): AnalyticsData {
         .lte('local_day', today),
       supabase
         .from('v_session_summary')
-        .select('status, focus_rating, adherence_ratio, actual_focus_seconds, paused_seconds')
+        .select('status, focus_rating, adherence_ratio, actual_focus_seconds, paused_seconds, started_at')
         .gte('started_at', sessionsSince),
       supabase
         .from('v_block_facts')
@@ -196,7 +234,7 @@ export function useAnalytics(initialRange: AnalyticsRange = 30): AnalyticsData {
     }
 
     const dailyRows = (dailyRes.data ?? []) as Array<Pick<DailyTotal, 'local_day' | 'focus_seconds' | 'break_seconds' | 'goal_met'>>
-    const sessionRows = (sessionRes.data ?? []) as Array<Pick<SessionSummary, 'status' | 'focus_rating' | 'adherence_ratio' | 'actual_focus_seconds' | 'paused_seconds'>>
+    const sessionRows = (sessionRes.data ?? []) as Array<Pick<SessionSummary, 'status' | 'focus_rating' | 'adherence_ratio' | 'actual_focus_seconds' | 'paused_seconds' | 'started_at'>>
     const factRows = (factRes.data ?? []) as Array<Pick<BlockFact, 'kind' | 'net_seconds' | 'hour_of_day'>>
 
     const byDay = new Map(dailyRows.map(row => [row.local_day, row]))
@@ -205,6 +243,7 @@ export function useAnalytics(initialRange: AnalyticsRange = 30): AnalyticsData {
     consistency.value = buildConsistency(spanDays, days, byDay)
     efficiency.value = buildEfficiency(spanDays.slice(days), byDay, sessionRows, factRows)
     bestHours.value = buildBestHours(factRows)
+    daypartRatings.value = buildDaypartRatings(sessionRows, timezone.value)
 
     pending.value = false
   }
@@ -221,6 +260,7 @@ export function useAnalytics(initialRange: AnalyticsRange = 30): AnalyticsData {
     consistency,
     efficiency,
     bestHours,
+    daypartRatings,
     timezone,
     pending,
     error,
@@ -234,7 +274,7 @@ export function useAnalytics(initialRange: AnalyticsRange = 30): AnalyticsData {
 // ---------------------------------------------------------------------------
 
 function buildQuality(
-  rows: Array<Pick<SessionSummary, 'status' | 'focus_rating' | 'adherence_ratio' | 'actual_focus_seconds' | 'paused_seconds'>>
+  rows: Array<Pick<SessionSummary, 'status' | 'focus_rating' | 'adherence_ratio' | 'actual_focus_seconds' | 'paused_seconds' | 'started_at'>>
 ): FocusQuality {
   const distribution = [0, 0, 0, 0, 0]
   let ratingTotal = 0
@@ -322,7 +362,7 @@ function buildConsistency(
 function buildEfficiency(
   windowDays: string[],
   byDay: Map<string, Pick<DailyTotal, 'local_day' | 'focus_seconds' | 'break_seconds' | 'goal_met'>>,
-  sessionRows: Array<Pick<SessionSummary, 'status' | 'focus_rating' | 'adherence_ratio' | 'actual_focus_seconds' | 'paused_seconds'>>,
+  sessionRows: Array<Pick<SessionSummary, 'status' | 'focus_rating' | 'adherence_ratio' | 'actual_focus_seconds' | 'paused_seconds' | 'started_at'>>,
   factRows: Array<Pick<BlockFact, 'kind' | 'net_seconds' | 'hour_of_day'>>
 ): Efficiency {
   let focusSeconds = 0
@@ -371,6 +411,44 @@ function buildEfficiency(
     abandonedSessions,
     completionRate: ratio(completedSessions, closedSessions)
   }
+}
+
+function buildDaypartRatings(
+  rows: Array<Pick<SessionSummary, 'status' | 'focus_rating' | 'adherence_ratio' | 'actual_focus_seconds' | 'paused_seconds' | 'started_at'>>,
+  timezone: string
+): DaypartRating[] {
+  const totals = new Map<string, { sum: number, count: number, seconds: number }>()
+
+  for (const row of rows) {
+    // `started_at` is a timestamptz and no view exposes an hour for it, so the
+    // conversion happens here — in the PROFILE's zone, never the browser's.
+    const hour = localHour(row.started_at, timezone)
+    if (hour === null) continue
+
+    const key = daypartFor(hour)
+    const entry = totals.get(key) ?? { sum: 0, count: 0, seconds: 0 }
+    entry.seconds += num(row.actual_focus_seconds)
+
+    const rating = row.focus_rating
+    if (typeof rating === 'number' && Number.isInteger(rating) && rating >= 1 && rating <= 5) {
+      entry.sum += rating
+      entry.count++
+    }
+    totals.set(key, entry)
+  }
+
+  // Always four entries in day order, so the row does not reflow as data
+  // arrives and an empty daypart is visibly empty rather than simply missing.
+  return DAYPARTS.map((part) => {
+    const entry = totals.get(part.key)
+    return {
+      key: part.key,
+      label: part.label,
+      meanRating: ratio(entry?.sum ?? 0, entry?.count ?? 0),
+      count: entry?.count ?? 0,
+      focusSeconds: entry?.seconds ?? 0
+    }
+  })
 }
 
 function buildBestHours(

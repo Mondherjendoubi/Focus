@@ -93,6 +93,10 @@ useHead({
   title: computed(() => {
     const b = timer.block.value
     if (b === null) return undefined
+    // A block carried over from a previous day is abandoned, not running. Its
+    // clock counts from whenever the tab was closed, so putting it in the tab
+    // strip would advertise a number that means nothing.
+    if (timer.isStale.value) return undefined
     if (timer.isPaused.value) return 'Paused'
     const clock = formatClock(timer.remainingSeconds.value ?? timer.elapsedSeconds.value)
     return b.kind === 'focus' ? clock : `Break · ${clock}`

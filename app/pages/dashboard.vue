@@ -49,6 +49,7 @@ const {
   consistency,
   efficiency,
   bestHours,
+  daypartRatings,
   pending: analyticsPending,
   error: analyticsError,
   setRange,
@@ -97,6 +98,13 @@ void refreshAnalytics()
       </template>
 
       <template v-else>
+        <!-- FA-017 — the week as a sentence, in the most prominent slot on the
+             page. Self-fetching and self-hiding: renders nothing at all until
+             there is a week worth recapping, so a new account is not greeted by
+             a headline of zeroes. Its window is a fixed 7 days and is
+             deliberately NOT wired to the range picker further down. -->
+        <WeeklyRecapCard />
+
         <!-- Stat tiles: wrap 4 -> 2 -> (implicit 1 via grid-cols-2 at 375px). -->
         <section
           aria-label="Today's totals"
@@ -136,10 +144,15 @@ void refreshAnalytics()
             :focus-minutes="focusMinutes"
             :goal-minutes="effectiveGoal"
           />
+          <!-- `focusedToday` is what turns the streak card from a counter into
+               a prompt. It is decided here because this page already holds
+               today's row, keyed on the profile's timezone rather than the
+               browser's. -->
           <StreakCard
             :current="streak?.current_streak ?? 0"
             :longest="streak?.longest_streak ?? 0"
             :last-active-day="streak?.last_active_day ?? null"
+            :focused-today="focusSeconds > 0"
           />
         </section>
 
@@ -219,6 +232,12 @@ void refreshAnalytics()
             />
             <BestHoursChart
               :best-hours="bestHours"
+              :pending="analyticsPending"
+            />
+            <!-- "When do I study" sits above; this is "when do I study well".
+                 They read as a pair, so they stay adjacent. -->
+            <RatingByDaypartCard
+              :dayparts="daypartRatings"
               :pending="analyticsPending"
             />
             <!-- FA-016. Self-fetching and self-hiding: it renders nothing at

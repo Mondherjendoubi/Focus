@@ -43,6 +43,39 @@ function remainderLabel(entry: GoalProgress): string {
 function periodLabel(entry: GoalProgress): string {
   return PERIOD_LABELS[entry.goal.period]
 }
+
+/**
+ * Ahead or behind where you should be by now — the number that turns a bar
+ * into a verdict. Null for daily goals (no meaningful pace), and null once the
+ * target is met, because "behind pace" on a goal you have already hit is
+ * nonsense the user should never be shown.
+ */
+function paceLabel(entry: GoalProgress): string | null {
+  if (entry.expectedRatio === null) return null
+  if (entry.ratio >= 1) return null
+
+  const delta = entry.ratio - entry.expectedRatio
+  // Within a few points of pace is "on pace" — flapping between ahead and
+  // behind on a rounding difference reads as noise.
+  if (Math.abs(delta) < 0.05) return 'on pace'
+
+  const shortfall = Math.abs(delta) * entry.targetSeconds
+  return delta > 0
+    ? `${formatDuration(shortfall)} ahead of pace`
+    : `${formatDuration(shortfall)} behind pace`
+}
+
+function paceTone(entry: GoalProgress): string {
+  if (entry.expectedRatio === null) return 'text-muted'
+  const delta = entry.ratio - entry.expectedRatio
+  if (Math.abs(delta) < 0.05) return 'text-muted'
+  return delta > 0 ? 'text-primary' : 'text-warning'
+}
+
+/** Where "should be by now" sits on the bar, as a percentage from the left. */
+function paceMarkerLeft(entry: GoalProgress): string {
+  return `${Math.min(Math.max(entry.expectedRatio ?? 0, 0), 1) * 100}%`
+}
 </script>
 
 <template>
@@ -110,7 +143,7 @@ function periodLabel(entry: GoalProgress): string {
         </div>
 
         <div
-          class="h-2 overflow-hidden rounded-full bg-elevated"
+          class="relative h-2 overflow-hidden rounded-full bg-elevated"
           role="progressbar"
           :aria-valuenow="Math.round(entry.ratio * 100)"
           :aria-valuemin="0"
@@ -122,7 +155,27 @@ function periodLabel(entry: GoalProgress): string {
             :class="entry.ratio >= 1 ? 'bg-primary' : 'bg-primary/60'"
             :style="{ width: barWidth(entry.ratio) }"
           />
+          <!-- Pace marker: where the bar would be if the period were spent
+               evenly. Decorative — the sentence below carries the same fact for
+               anyone who cannot see it. -->
+          <span
+            v-if="entry.expectedRatio !== null && entry.ratio < 1"
+            class="absolute inset-y-0 w-0.5 bg-inverted/40"
+            :style="{ left: paceMarkerLeft(entry) }"
+            aria-hidden="true"
+          />
         </div>
+
+        <p
+          v-if="paceLabel(entry)"
+          class="text-xs"
+          :class="paceTone(entry)"
+        >
+          {{ paceLabel(entry) }}
+          <span class="text-muted">
+            · day {{ entry.daysElapsed }} of {{ entry.daysInPeriod }}
+          </span>
+        </p>
       </li>
     </ul>
   </UCard>

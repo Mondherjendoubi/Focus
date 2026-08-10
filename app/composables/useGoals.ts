@@ -43,6 +43,17 @@ export interface GoalProgress {
   ratio: number
   /** First `local_day` counted, for the "since…" label. */
   windowStart: string
+  /**
+   * How far through the period you should be by now, 0..1 — the thing that
+   * makes `ratio` mean something. **null for daily goals on purpose**: "you are
+   * 30% through Tuesday" is noise, not signal, and inventing an hourly figure
+   * would make the bar jitter all day.
+   */
+  expectedRatio: number | null
+  /** Days counted so far, inclusive of today. null when pace does not apply. */
+  daysElapsed: number | null
+  /** Length of the period in days. null when pace does not apply. */
+  daysInPeriod: number | null
 }
 
 export const GOAL_PERIODS: GoalPeriod[] = ['daily', 'weekly', 'monthly']
@@ -174,12 +185,30 @@ export function useGoals() {
         // The single minutes -> seconds conversion in this feature.
         const targetSeconds = goal.target_minutes * 60
 
+        // Monthly pace uses the real length of THIS month — dividing by a flat
+        // 30 would tell every user they were behind on the 31st of March and
+        // ahead on the 28th of February.
+        const daysInPeriod = goal.period === 'weekly'
+          ? 7
+          : goal.period === 'monthly'
+            ? daysInMonthOf(today)
+            : null
+
+        const daysElapsed = daysInPeriod === null
+          ? null
+          : Math.min(daysElapsedInclusive(windowStart, today), daysInPeriod)
+
         return {
           goal,
           focusSeconds,
           targetSeconds,
           ratio: targetSeconds > 0 ? focusSeconds / targetSeconds : 0,
-          windowStart
+          windowStart,
+          expectedRatio: daysInPeriod !== null && daysElapsed !== null && daysInPeriod > 0
+            ? daysElapsed / daysInPeriod
+            : null,
+          daysElapsed,
+          daysInPeriod
         }
       })
 

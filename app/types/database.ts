@@ -23,6 +23,12 @@ export type Timestamp = string
 export interface Profile {
   id: string
   display_name: string | null
+  /**
+   * Discovery handle, `^[a-z0-9_]{3,20}$`, unique where not null.
+   * **null means undiscoverable** — nobody is opted into being findable just by
+   * having an account. Added by `Schema/02_social.sql`.
+   */
+  username: string | null
   timezone: string
   daily_goal_minutes: number
   /** ISO weekday: 1 = Monday. */
@@ -248,6 +254,62 @@ export interface Streaks {
   longest_streak: number
   current_streak: number
   last_active_day: LocalDay | null
+}
+
+// ---------------------------------------------------------------------------
+// Social (Schema/02_social.sql)
+//
+// Friend data is NOT reachable through the tables or the `v_*` views — every
+// one of those is scoped to `auth.uid()` and stays that way. It comes only from
+// the `security definer` functions below, which check for an accepted
+// friendship and return aggregates. There is deliberately no shape here for a
+// friend's topics, sessions or notes, because nothing returns them.
+// ---------------------------------------------------------------------------
+
+export type FriendshipStatus = 'pending' | 'accepted'
+
+/** 'friend' once accepted; otherwise which way the pending request points. */
+export type FriendDirection = 'incoming' | 'outgoing' | 'friend'
+
+export interface Friendship {
+  id: string
+  requester_id: string
+  addressee_id: string
+  status: FriendshipStatus
+  created_at: Timestamp
+  responded_at: Timestamp | null
+}
+
+/** One row of `my_friends()` — the other party, from your point of view. */
+export interface FriendEdge {
+  friendship_id: string
+  friend_id: string
+  username: string | null
+  display_name: string | null
+  status: FriendshipStatus
+  direction: FriendDirection
+  created_at: Timestamp
+}
+
+/** A `find_profile_by_username()` hit. Three fields, by design. */
+export interface ProfileLookup {
+  id: string
+  username: string | null
+  display_name: string | null
+}
+
+/**
+ * One row of `friend_stats()`. **Zero rows means no access**, which is not the
+ * same as a friend with no data — the caller must not render either as zeros.
+ * `bigint` columns arrive from PostgREST as strings; coerce before arithmetic.
+ */
+export interface FriendStats {
+  week_seconds: number
+  prev_week_seconds: number
+  current_streak: number
+  longest_streak: number
+  goal_days_hit: number
+  active_days: number
 }
 
 // ---------------------------------------------------------------------------

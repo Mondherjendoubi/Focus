@@ -15,6 +15,10 @@ const toast = useToast()
 // isn't seconds), so no unit conversion happens here or on save.
 const state = reactive({
   display_name: '',
+  // Empty string in the form, null in the database. Null is meaningful here —
+  // it means "not discoverable", which is the correct default for anyone who
+  // has not deliberately opted into being findable.
+  username: '',
   timezone: 'Europe/Berlin',
   daily_goal_minutes: 120,
   week_starts_on: 1 as 1 | 7
@@ -78,6 +82,7 @@ watch(
   (p) => {
     if (!p) return
     state.display_name = p.display_name ?? ''
+    state.username = p.username ?? ''
     state.timezone = p.timezone
     state.daily_goal_minutes = p.daily_goal_minutes
     state.week_starts_on = (p.week_starts_on === 7 ? 7 : 1)
@@ -96,6 +101,15 @@ function detectTimezone() {
 
 function validate(data: typeof state) {
   const errs: Array<{ name: string, message: string }> = []
+  // Mirrors the DB check constraint, so the user hears about it before a round
+  // trip. Blank is valid — it means "leave me undiscoverable".
+  const handle = data.username.trim().toLowerCase()
+  if (handle.length > 0 && !USERNAME_PATTERN.test(handle)) {
+    errs.push({
+      name: 'username',
+      message: '3–20 characters: lowercase letters, numbers and underscores'
+    })
+  }
   if (!data.timezone) errs.push({ name: 'timezone', message: 'Pick a timezone' })
   if (!Number.isInteger(data.daily_goal_minutes) || data.daily_goal_minutes < 0) {
     errs.push({ name: 'daily_goal_minutes', message: 'Must be a whole number of minutes, 0 or more' })
@@ -197,8 +211,11 @@ async function onSubmit(event: FormSubmitEvent<typeof state>) {
   // Normalize empty display name to null — the column is nullable and an
   // empty string reads as "the user set it to empty", which isn't the intent.
   const trimmed = event.data.display_name.trim()
+  const handle = event.data.username.trim().toLowerCase()
   const patch = {
     display_name: trimmed.length > 0 ? trimmed : null,
+    // Blank clears the handle back to null — i.e. removes you from search.
+    username: handle.length > 0 ? handle : null,
     timezone: event.data.timezone,
     daily_goal_minutes: event.data.daily_goal_minutes,
     week_starts_on: event.data.week_starts_on
@@ -267,6 +284,23 @@ async function onSubmit(event: FormSubmitEvent<typeof state>) {
             <UInput
               v-model="state.display_name"
               placeholder="Your name"
+              :disabled="saving"
+              class="w-full"
+            />
+          </UFormField>
+
+          <UFormField
+            label="Handle"
+            name="username"
+            help="How friends find you. Leave blank and nobody can search for you."
+          >
+            <UInput
+              v-model="state.username"
+              placeholder="yourname"
+              icon="i-lucide-at-sign"
+              autocapitalize="none"
+              autocorrect="off"
+              spellcheck="false"
               :disabled="saving"
               class="w-full"
             />

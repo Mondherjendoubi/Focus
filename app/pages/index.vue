@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { Milestone } from '~/composables/useMilestones'
 import type { BlockKind, SessionStatus, SessionTemplateBlock, Topic } from '~/types/database'
 
 /**
@@ -43,6 +44,7 @@ const {
   block,
   elapsedSeconds,
   isPaused,
+  isStale,
   loading: activeLoading,
   error: activeError,
   refresh,
@@ -300,14 +302,27 @@ const endNotes = ref('')
 const endSubmitting = ref(false)
 const showConfetti = ref(false)
 
+// FA-017 — records broken by the session that just ended. Empty for an ordinary
+// session, which is the common case and gets no celebration at all.
+const { detectForSession } = useMilestones()
+const milestones = ref<Milestone[]>([])
+
 function openEndPrompt() {
   endRating.value = null
   endNotes.value = ''
+  // Ending the session answers "start the next block?" by itself. Leaving that
+  // prompt open would stack it behind this one, and behind the milestone modal
+  // that may follow — three dialogs deep for one action.
+  advancePromptOpen.value = false
   endPromptOpen.value = true
 }
 
 async function finishSession(status: SessionStatus) {
   endSubmitting.value = true
+  // Captured before the RPC: `endSession` nulls the shared session ref, and the
+  // milestone queries need to know which session just closed.
+  const finishedId = session.value?.id ?? null
+  const finishedTopicId = session.value?.topic_id ?? null
   try {
     await endSession({
       status,
@@ -324,14 +339,24 @@ async function finishSession(status: SessionStatus) {
       return
     }
     endPromptOpen.value = false
-    if (status === 'completed') {
-      showConfetti.value = true
-    }
     toast.add({
       title: status === 'completed' ? 'Session completed' : 'Session ended',
       color: status === 'completed' ? 'success' : 'neutral',
       icon: status === 'completed' ? 'i-lucide-circle-check' : 'i-lucide-log-out'
     })
+
+    // Confetti is now gated on an actual record rather than firing for every
+    // completed session — a reward that arrives every time stops being one.
+    // Detection is best-effort and never surfaces an error: the session has
+    // already ended successfully and a failed victory lap is not the user's
+    // problem.
+    if (status === 'completed' && finishedId !== null) {
+      const found = await detectForSession(finishedId, finishedTopicId)
+      if (found.length > 0) {
+        milestones.value = found
+        showConfetti.value = true
+      }
+    }
   } finally {
     endSubmitting.value = false
   }
@@ -339,11 +364,44 @@ async function finishSession(status: SessionStatus) {
 
 const ratingOptions = [1, 2, 3, 4, 5]
 
-const renderState = computed<'idle' | 'ready' | 'running'>(() => {
+const renderState = computed<'idle' | 'ready' | 'running' | 'stale'>(() => {
   if (session.value === null) return 'idle'
   if (block.value === null) return 'ready'
+  // A block carried over from a previous day is an abandoned one, not a live
+  // timer. Rendering it as running would show a clock counting since whenever
+  // the tab was closed, and invite the user to "resume" meaningless time.
+  if (isStale.value) return 'stale'
   return 'running'
 })
+
+/** Discard an abandoned session rather than pretending its clock is real. */
+const discarding = ref(false)
+
+async function discardStaleSession() {
+  if (discarding.value) return
+  discarding.value = true
+  try {
+    // `end_session` closes the open block and its pause server-side, so this
+    // one call is enough — no need to end the block first.
+    await endSession({ status: 'abandoned' })
+    if (activeError.value) {
+      toast.add({
+        title: 'Could not close that session',
+        description: activeError.value,
+        color: 'error',
+        icon: 'i-lucide-triangle-alert'
+      })
+      return
+    }
+    toast.add({
+      title: 'Old session closed',
+      color: 'neutral',
+      icon: 'i-lucide-check'
+    })
+  } finally {
+    discarding.value = false
+  }
+}
 
 const runningTitle = computed(() => {
   const t = session.value?.title?.trim()
@@ -422,6 +480,43 @@ const timerAnnouncement = computed(() => {
         :submitting="starterSubmitting || activeLoading"
         @start="onStart"
       />
+
+      <!-- Recovery state: a block left open on an earlier day. Deliberately
+           shows no clock — the elapsed time since the tab was closed is not
+           study time, and rendering it would be the exact lie this state
+           exists to prevent. -->
+      <UCard
+        v-else-if="renderState === 'stale'"
+        :ui="{ body: 'sm:p-8' }"
+      >
+        <div class="flex flex-col items-center gap-5 text-center">
+          <div class="rounded-full bg-warning/10 p-3">
+            <UIcon
+              name="i-lucide-clock-alert"
+              class="size-7 text-warning"
+            />
+          </div>
+          <div class="flex flex-col gap-2">
+            <h2 class="font-display text-xl font-semibold tracking-tight text-highlighted">
+              You left a session open
+            </h2>
+            <p class="max-w-sm text-sm text-muted">
+              A block from
+              <span class="font-medium text-default">{{ block?.local_day }}</span>
+              is still running. Close it and its time will be recorded up to
+              when it was last active, then you can start fresh.
+            </p>
+          </div>
+          <UButton
+            icon="i-lucide-check"
+            :loading="discarding"
+            :disabled="discarding"
+            @click="discardStaleSession"
+          >
+            Close it
+          </UButton>
+        </div>
+      </UCard>
 
       <UCard
         v-else-if="renderState === 'ready'"
@@ -550,6 +645,53 @@ const timerAnnouncement = computed(() => {
     >
       <SessionConfetti @done="showConfetti = false" />
     </div>
+
+    <!-- FA-017 — the named record behind the confetti. Only opens when
+         `detectForSession` actually found something, so an ordinary session
+         still closes straight back to the idle screen. -->
+    <UModal
+      :open="milestones.length > 0"
+      title="New record"
+      :ui="{ content: 'sm:max-w-md' }"
+      @update:open="(open) => { if (!open) milestones = [] }"
+    >
+      <template #body>
+        <ul class="flex flex-col gap-4">
+          <li
+            v-for="milestone in milestones"
+            :key="milestone.kind"
+            class="flex items-start gap-3"
+          >
+            <div class="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+              <UIcon
+                :name="milestone.icon"
+                class="size-5 text-primary"
+              />
+            </div>
+            <div class="min-w-0">
+              <p class="text-sm font-medium text-highlighted">
+                {{ milestone.title }}
+              </p>
+              <p class="mt-0.5 text-sm text-muted">
+                {{ milestone.detail }}
+              </p>
+            </div>
+          </li>
+        </ul>
+      </template>
+
+      <template #footer>
+        <div class="flex w-full justify-end">
+          <UButton
+            color="neutral"
+            variant="ghost"
+            @click="milestones = []"
+          >
+            Nice
+          </UButton>
+        </div>
+      </template>
+    </UModal>
 
     <UModal
       v-model:open="advancePromptOpen"
