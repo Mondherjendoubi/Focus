@@ -22,6 +22,9 @@ const CONSTRAINT_MESSAGES: ReadonlyArray<readonly [string, string]> = [
   ['blocks_no_overlap', 'Another block is still running.'],
   ['pauses_one_open', 'This block is already paused.'],
   ['topics_unique_name', 'You already have a topic with that name here.'],
+  // Partial index — `where active` — so this fires only against another goal
+  // that is still switched on. Deactivated ones never collide.
+  ['goals_unique', 'You already have an active goal for that topic and period.'],
   ['topics_color_check', 'Pick a valid colour.'],
   ['topic hierarchy cycle detected', 'A topic can\'t be moved inside itself.']
 ]

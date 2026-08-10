@@ -36,6 +36,26 @@ const todayLabel = computed(() => todayLocalDay(timezone.value))
 const hasAnyActivity = computed(
   () => focusSeconds.value > 0 || (streak.value?.longest_streak ?? 0) > 0
 )
+
+// FA-015 — the deep-analytics section below the fold. One composable feeds all
+// four cards by props rather than each fetching itself, because the range
+// picker drives all of them at once and four self-fetching cards would mean
+// four refetches per click. Aliased on destructure: `pending` and `error` are
+// already taken by the stats above, and these two are a separate failure
+// domain — the analytics section can error without blanking the tiles.
+const {
+  range: analyticsRange,
+  quality,
+  consistency,
+  efficiency,
+  bestHours,
+  pending: analyticsPending,
+  error: analyticsError,
+  setRange,
+  refresh: refreshAnalytics
+} = useAnalytics()
+
+void refreshAnalytics()
 </script>
 
 <template>
@@ -135,6 +155,79 @@ const hasAnyActivity = computed(
             <FocusHeatmap />
           </div>
           <TopicLeaderboard />
+        </section>
+
+        <!-- FA-015 — deep analytics. Everything ABOVE this heading has its own
+             fixed window and is untouched by the range picker; the subtitle
+             says so, and the picker sits inside this header rather than at the
+             top of the page so its reach reads visually too. -->
+        <!-- Hidden entirely for an account with no history: four cards each
+             saying "no data" above the onboarding checklist is noise at exactly
+             the moment the user needs one clear instruction. -->
+        <section
+          v-if="hasAnyActivity"
+          aria-labelledby="analytics-heading"
+          class="flex flex-col gap-4"
+        >
+          <div class="flex flex-wrap items-end justify-between gap-3 border-t border-default pt-8">
+            <div class="flex flex-col gap-1">
+              <h2
+                id="analytics-heading"
+                class="font-display text-lg font-semibold tracking-tight text-highlighted"
+              >
+                Deeper look
+              </h2>
+              <p class="text-sm text-muted">
+                Scoped to the last {{ analyticsRange }} days — the cards above are not.
+              </p>
+            </div>
+            <AnalyticsRangePicker
+              :model-value="analyticsRange"
+              :disabled="analyticsPending"
+              @update:model-value="setRange"
+            />
+          </div>
+
+          <!-- Same rule as the stats above: a failed read must never render as
+               zeroes. A user with months of history being told they have none
+               is this app's worst failure mode. -->
+          <UAlert
+            v-if="analyticsError"
+            color="error"
+            variant="soft"
+            icon="i-lucide-triangle-alert"
+            title="Couldn't load your analytics"
+            :description="analyticsError"
+            :actions="[{ label: 'Retry', onClick: () => refreshAnalytics(), color: 'neutral', variant: 'outline' }]"
+          />
+
+          <div
+            v-else
+            class="grid grid-cols-1 gap-4 lg:grid-cols-2"
+          >
+            <ConsistencyCard
+              :consistency="consistency"
+              :pending="analyticsPending"
+            />
+            <FocusQualityCard
+              :quality="quality"
+              :pending="analyticsPending"
+            />
+            <EfficiencyCard
+              :efficiency="efficiency"
+              :pending="analyticsPending"
+            />
+            <BestHoursChart
+              :best-hours="bestHours"
+              :pending="analyticsPending"
+            />
+            <!-- FA-016. Self-fetching and self-hiding: it renders nothing at
+                 all when there are no active goals, so it does not leave a
+                 hole in the grid for users who never set one. Its own periods
+                 are fixed (day / week / month), so the range picker above
+                 correctly does not touch it. -->
+            <GoalProgressCard />
+          </div>
         </section>
 
         <!-- Zero state for a brand-new user: no focus today, no history

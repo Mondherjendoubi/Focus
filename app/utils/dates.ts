@@ -97,6 +97,39 @@ export function lastNDays(n: number, timezone: string): LocalDay[] {
   return days
 }
 
+/**
+ * First day of the week `today` falls in, honouring `profiles.week_starts_on`.
+ *
+ * The weekday is read off the `local_day` label in UTC, which is the whole
+ * point: a label has no time-of-day to be shifted across a boundary, so the
+ * result is the same whether the user is in Auckland or Los Angeles. Deriving
+ * it from the browser's `Date` instead would put someone whose profile says
+ * Tokyo into the wrong week for most of their evening.
+ */
+export function weekStartDay(timezone: string, weekStartsOn: number): LocalDay {
+  const today = todayLocalDay(timezone)
+  const date = parseLocalDay(today)
+  if (!date) return today
+
+  // `getUTCDay()` is 0=Sunday..6=Saturday; ISO — and `week_starts_on` — is
+  // 1=Monday..7=Sunday.
+  const isoDow = date.getUTCDay() === 0 ? 7 : date.getUTCDay()
+  const start = Math.min(7, Math.max(1, Math.round(weekStartsOn) || 1))
+
+  return shiftDay(today, -(((isoDow - start) + 7) % 7))
+}
+
+/**
+ * First day of the calendar month `today` falls in, in `timezone`.
+ *
+ * Sliced off the label rather than computed: `todayLocalDay` has already done
+ * the timezone work, and `'YYYY-MM'` + `'-01'` cannot land on the wrong month
+ * the way `setUTCDate(1)` on a mis-zoned `Date` can.
+ */
+export function monthStartDay(timezone: string): LocalDay {
+  return `${todayLocalDay(timezone).slice(0, 7)}-01`
+}
+
 /** Axis ticks and history headers: `'2026-08-06'` reads as `'Thu'`. */
 export function dayLabel(localDay: LocalDay | null | undefined): string {
   const date = parseLocalDay(localDay)

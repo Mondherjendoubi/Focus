@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { FormSubmitEvent } from '@nuxt/ui'
+import type { GoalInput } from '~/composables/useGoals'
+import type { Goal } from '~/types/database'
 
 definePageMeta({ middleware: 'auth' })
 
@@ -103,6 +105,89 @@ function validate(data: typeof state) {
   }
   return errs
 }
+
+// ---------------------------------------------------------------------------
+// FA-016 — goals. Separate failure domain from the profile form above: a failed
+// goals read must not hide the timezone field, which is the setting everything
+// else in the app depends on.
+// ---------------------------------------------------------------------------
+
+const {
+  goals,
+  progress: goalProgress,
+  loading: goalsLoading,
+  error: goalsError,
+  loaded: goalsLoaded,
+  load: loadGoals,
+  create: createGoal,
+  update: updateGoal,
+  deactivate: deactivateGoal
+} = useGoals()
+
+const { active: activeTopics } = useTopics()
+
+const goalModalOpen = ref(false)
+const editingGoal = ref<Goal | null>(null)
+const goalSaving = ref(false)
+
+if (!goalsLoaded.value) void loadGoals()
+
+function openCreateGoal() {
+  editingGoal.value = null
+  goalModalOpen.value = true
+}
+
+function openEditGoal(goal: Goal) {
+  editingGoal.value = goal
+  goalModalOpen.value = true
+}
+
+function goalTopicLabel(goal: Goal): string {
+  if (goal.topic_id === null) return 'All topics'
+  return activeTopics.value.find(topic => topic.id === goal.topic_id)?.name ?? 'Archived topic'
+}
+
+async function onGoalSubmit(input: GoalInput) {
+  if (goalSaving.value) return
+  goalSaving.value = true
+  try {
+    if (editingGoal.value) {
+      await updateGoal(editingGoal.value.id, input)
+      toast.add({ title: 'Goal updated', icon: 'i-lucide-check', color: 'success' })
+    } else {
+      await createGoal(input)
+      toast.add({ title: 'Goal added', icon: 'i-lucide-check', color: 'success' })
+    }
+    goalModalOpen.value = false
+    editingGoal.value = null
+  } catch (err) {
+    toast.add({
+      title: 'Could not save goal',
+      description: (err as Error).message,
+      icon: 'i-lucide-triangle-alert',
+      color: 'error'
+    })
+  } finally {
+    goalSaving.value = false
+  }
+}
+
+async function onGoalDeactivate(goal: Goal) {
+  try {
+    await deactivateGoal(goal.id)
+    toast.add({ title: 'Goal switched off', icon: 'i-lucide-power', color: 'success' })
+  } catch (err) {
+    toast.add({
+      title: 'Could not switch off goal',
+      description: (err as Error).message,
+      icon: 'i-lucide-triangle-alert',
+      color: 'error'
+    })
+  }
+}
+
+/** Progress lookup so each row can show where it currently stands. */
+const progressByGoal = computed(() => new Map(goalProgress.value.map(entry => [entry.goal.id, entry])))
 
 async function onSubmit(event: FormSubmitEvent<typeof state>) {
   if (saving.value) return
@@ -278,6 +363,126 @@ async function onSubmit(event: FormSubmitEvent<typeof state>) {
           </div>
         </UForm>
       </UCard>
+
+      <!-- FA-016 — goals. `daily_goal_minutes` above and this list are two
+           different mechanisms, and users will assume they are one. The help
+           text below says outright which one drives the dashboard ring, because
+           silently having two daily targets is a genuinely confusing state. -->
+      <UCard>
+        <template #header>
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex flex-col gap-1">
+              <h2 class="text-base font-semibold text-highlighted">
+                Goals
+              </h2>
+              <p class="text-sm text-muted">
+                Targets per topic, per period. The daily goal above is what the
+                dashboard ring follows.
+              </p>
+            </div>
+            <UButton
+              icon="i-lucide-plus"
+              size="sm"
+              :disabled="goalsLoading"
+              @click="openCreateGoal"
+            >
+              Add goal
+            </UButton>
+          </div>
+        </template>
+
+        <UAlert
+          v-if="goalsError"
+          color="error"
+          variant="soft"
+          icon="i-lucide-triangle-alert"
+          title="Couldn't load your goals"
+          :description="goalsError"
+          :actions="[{ label: 'Retry', color: 'neutral', variant: 'outline', onClick: () => loadGoals() }]"
+        />
+
+        <div
+          v-else-if="goalsLoading && goals.length === 0"
+          class="flex flex-col gap-3"
+        >
+          <USkeleton class="h-12 w-full" />
+          <USkeleton class="h-12 w-full" />
+        </div>
+
+        <div
+          v-else-if="goals.length === 0"
+          class="flex flex-col items-center gap-2 py-6 text-center"
+        >
+          <UIcon
+            name="i-lucide-target"
+            class="size-6 text-muted"
+          />
+          <p class="text-sm text-muted">
+            No goals yet. Add one to track a topic weekly or monthly.
+          </p>
+        </div>
+
+        <ul
+          v-else
+          class="flex flex-col divide-y divide-default"
+        >
+          <li
+            v-for="goal in goals"
+            :key="goal.id"
+            class="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+          >
+            <div class="min-w-0">
+              <p class="truncate text-sm font-medium text-highlighted">
+                {{ goalTopicLabel(goal) }}
+              </p>
+              <p class="text-xs text-muted">
+                {{ PERIOD_LABELS[goal.period] }} · {{ goal.target_minutes }} min
+                <template v-if="progressByGoal.get(goal.id)">
+                  · {{ formatDuration(progressByGoal.get(goal.id)!.focusSeconds) }} so far
+                </template>
+              </p>
+            </div>
+            <div class="flex items-center gap-1">
+              <UButton
+                icon="i-lucide-pencil"
+                color="neutral"
+                variant="ghost"
+                size="sm"
+                :aria-label="`Edit ${goalTopicLabel(goal)} goal`"
+                @click="openEditGoal(goal)"
+              />
+              <!-- Switch off, never delete: the partial unique index only
+                   counts active rows, so this frees the slot and keeps the
+                   record. -->
+              <UButton
+                icon="i-lucide-power"
+                color="neutral"
+                variant="ghost"
+                size="sm"
+                :aria-label="`Switch off ${goalTopicLabel(goal)} goal`"
+                @click="onGoalDeactivate(goal)"
+              />
+            </div>
+          </li>
+        </ul>
+      </UCard>
+
+      <UModal
+        v-model:open="goalModalOpen"
+        :title="editingGoal ? 'Edit goal' : 'Add goal'"
+      >
+        <template #body>
+          <GoalForm
+            :key="editingGoal?.id ?? 'new'"
+            :goal="editingGoal"
+            :topics="activeTopics"
+            :saving="goalSaving"
+            @submit="onGoalSubmit"
+            @cancel="goalModalOpen = false"
+            @edit-conflict="openEditGoal"
+          />
+        </template>
+      </UModal>
     </div>
   </UContainer>
 </template>
