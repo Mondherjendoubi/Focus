@@ -193,6 +193,50 @@ export function monthStartDay(timezone: string): LocalDay {
   return `${todayLocalDay(timezone).slice(0, 7)}-01`
 }
 
+/**
+ * `Intl.RelativeTimeFormat` owns the plural rules and the "yesterday"/"last
+ * week" wording, so none of that is hand-rolled here.
+ */
+const RELATIVE = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
+
+/** Seconds per unit, walked outward until one fits. */
+const RELATIVE_DIVISIONS: ReadonlyArray<readonly [number, Intl.RelativeTimeFormatUnit]> = [
+  [60, 'second'],
+  [60, 'minute'],
+  [24, 'hour'],
+  [7, 'day'],
+  [4.34524, 'week'],
+  [12, 'month'],
+  [Number.POSITIVE_INFINITY, 'year']
+]
+
+/**
+ * A timestamp as "3 days ago" / "in 2 hours".
+ *
+ * Unlike everything else in this file this takes an *instant*, not a
+ * `local_day`, so no timezone reasoning applies — the gap between two instants
+ * is the same length wherever you read it from.
+ *
+ * `now` is a parameter so callers can pass a ticking ref and have the text
+ * update, and so the function stays testable.
+ */
+export function relativeTime(instant: Timestamp | null | undefined, now: Date = new Date()): string {
+  if (typeof instant !== 'string' || instant === '') return NO_VALUE
+
+  const date = new Date(instant)
+  if (Number.isNaN(date.getTime())) return NO_VALUE
+
+  // Negative = in the past, which is the direction RelativeTimeFormat expects.
+  let delta = (date.getTime() - now.getTime()) / 1000
+
+  for (const [span, unit] of RELATIVE_DIVISIONS) {
+    if (Math.abs(delta) < span) return RELATIVE.format(Math.round(delta), unit)
+    delta /= span
+  }
+
+  return NO_VALUE
+}
+
 /** Axis ticks and history headers: `'2026-08-06'` reads as `'Thu'`. */
 export function dayLabel(localDay: LocalDay | null | undefined): string {
   const date = parseLocalDay(localDay)

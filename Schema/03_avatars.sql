@@ -113,6 +113,11 @@ language sql security definer set search_path = public stable as $$
   limit 1
 $$;
 
+-- `responded_at` is stamped by `friendships_guard()` at the moment of
+-- acceptance. Returning it is what lets the UI say "you became friends 2 days
+-- ago" and flag ones accepted since your last visit — without it, a request you
+-- sent simply appears in the friends list one day with nothing marking the
+-- change, and you would never know it had been answered.
 drop function if exists my_friends();
 create or replace function my_friends()
 returns table (
@@ -123,7 +128,8 @@ returns table (
   avatar_url    text,
   status        friendship_status,
   direction     text,
-  created_at    timestamptz
+  created_at    timestamptz,
+  responded_at  timestamptz
 )
 language sql security definer set search_path = public stable as $$
   select f.id,
@@ -137,7 +143,8 @@ language sql security definer set search_path = public stable as $$
            when f.requester_id = auth.uid() then 'outgoing'
            else 'incoming'
          end,
-         f.created_at
+         f.created_at,
+         f.responded_at
   from friendships f
   join profiles other
     on other.id = case when f.requester_id = auth.uid()

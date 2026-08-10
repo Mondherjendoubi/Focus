@@ -76,6 +76,50 @@ export function useFriends() {
   const incoming = computed(() => edges.value.filter(edge => edge.direction === 'incoming'))
   const outgoing = computed(() => edges.value.filter(edge => edge.direction === 'outgoing'))
 
+  /** Drives the nav badge — requests waiting on YOU are the actionable ones. */
+  const incomingCount = computed(() => incoming.value.length)
+
+  /**
+   * When this browser last opened the friends page.
+   *
+   * A friendship accepted after this is "new to you". Without it, a request you
+   * sent just quietly appears among your friends one day with nothing marking
+   * that it changed — you would have to remember who you had asked.
+   *
+   * localStorage rather than a column: it is per-device UI state, not
+   * something another user should be able to observe, and it needs no migration.
+   */
+  const SEEN_KEY = 'focus:friends:seen'
+  const lastSeen = useState<string | null>('friends:lastSeen', () => null)
+
+  function readLastSeen() {
+    if (import.meta.server) return
+    lastSeen.value = window.localStorage.getItem(SEEN_KEY)
+  }
+
+  /** Newly accepted since the last visit, most recent first. */
+  const newlyAccepted = computed(() => {
+    const since = lastSeen.value
+    if (since === null) return []
+    return accepted.value.filter(edge =>
+      edge.responded_at !== null && edge.responded_at > since
+    )
+  })
+
+  function isNewlyAccepted(edge: FriendEdge): boolean {
+    return newlyAccepted.value.some(item => item.friendship_id === edge.friendship_id)
+  }
+
+  /**
+   * Stamp the visit. Called on leaving the page rather than entering it, so the
+   * "New" chips stay visible for the whole visit that surfaced them instead of
+   * vanishing as the list paints.
+   */
+  function markSeen() {
+    if (import.meta.server) return
+    window.localStorage.setItem(SEEN_KEY, new Date().toISOString())
+  }
+
   function fail(err: PostgrestError | Error | unknown): never {
     const message = toMessage(err as PostgrestError | Error)
     error.value = message
@@ -83,11 +127,13 @@ export function useFriends() {
   }
 
   /**
-   * One call returns all three groups; the computeds above split them. Three
-   * separate round trips for what the RPC already hands over in one would be
-   * three chances to render an inconsistent page.
+   * Edges only — one RPC, no per-friend stats.
+   *
+   * Split out because the nav badge needs the incoming count on every page, and
+   * `load()` fires an extra `friend_stats` call per accepted friend. Making the
+   * whole app pay N+1 round trips to render a number would be absurd.
    */
-  async function load() {
+  async function loadEdges() {
     loading.value = true
     error.value = null
     try {
@@ -96,10 +142,7 @@ export function useFriends() {
 
       edges.value = (data ?? []) as FriendEdge[]
       loaded.value = true
-
-      // Aggregates only for accepted friends — the RPC returns nothing for
-      // anyone else, so asking would be a wasted round trip per pending row.
-      await Promise.all(accepted.value.map(edge => loadStats(edge.friend_id)))
+      readLastSeen()
     } catch (err) {
       // Surface it. An empty friends list and a failed query must not look the
       // same, least of all on a page whose whole point is other people.
@@ -107,6 +150,21 @@ export function useFriends() {
     } finally {
       loading.value = false
     }
+  }
+
+  /**
+   * Everything the friends page needs. One call returns all three groups; the
+   * computeds above split them. Three separate round trips for what the RPC
+   * already hands over in one would be three chances to render an inconsistent
+   * page.
+   */
+  async function load() {
+    await loadEdges()
+    if (error.value !== null) return
+
+    // Aggregates only for accepted friends — the RPC returns nothing for
+    // anyone else, so asking would be a wasted round trip per pending row.
+    await Promise.all(accepted.value.map(edge => loadStats(edge.friend_id)))
   }
 
   /**
@@ -197,11 +255,16 @@ export function useFriends() {
     accepted,
     incoming,
     outgoing,
+    incomingCount,
+    newlyAccepted,
+    isNewlyAccepted,
+    markSeen,
     stats,
     loading,
     error,
     loaded,
     load,
+    loadEdges,
     loadStats,
     findByUsername,
     existingEdgeWith,

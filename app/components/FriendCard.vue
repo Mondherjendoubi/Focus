@@ -18,6 +18,8 @@ const props = defineProps<{
   edge: FriendEdge
   stats?: FriendStats
   removing?: boolean
+  /** Accepted since this browser last opened the page — see `useFriends`. */
+  isNew?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -86,14 +88,33 @@ const deltaTone = computed(() => {
             :src="edge.avatar_url"
           />
           <div class="min-w-0">
-            <p class="truncate text-sm font-medium text-highlighted">
-              {{ name }}
-            </p>
+            <div class="flex items-center gap-1.5">
+              <p class="truncate text-sm font-medium text-highlighted">
+                {{ name }}
+              </p>
+              <!-- The answer to "did they accept?". Without it a request you
+                   sent just appears among your friends one day with nothing
+                   marking that anything changed. -->
+              <UBadge
+                v-if="isNew"
+                color="primary"
+                variant="subtle"
+                size="sm"
+              >
+                New
+              </UBadge>
+            </div>
             <p
               v-if="edge.username && edge.display_name"
               class="truncate text-xs text-muted"
             >
               @{{ edge.username }}
+            </p>
+            <p
+              v-if="edge.responded_at"
+              class="truncate text-xs text-dimmed"
+            >
+              friends {{ relativeTime(edge.responded_at) }}
             </p>
           </div>
         </div>

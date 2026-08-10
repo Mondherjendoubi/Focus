@@ -49,6 +49,12 @@ const isIncoming = computed(() => props.edge.direction === 'incoming')
           waiting for them to accept
         </template>
         </p>
+        <!-- How long it has been pending. An outgoing request with no age reads
+             as "just sent" forever, so you cannot tell a request from an hour
+             ago from one they have been sitting on for a fortnight. -->
+        <p class="text-xs text-dimmed">
+          sent {{ relativeTime(edge.created_at) }}
+        </p>
       </div>
     </div>
 

@@ -28,6 +28,9 @@ const {
   error,
   loaded,
   load,
+  isNewlyAccepted,
+  newlyAccepted,
+  markSeen,
   findByUsername,
   existingEdgeWith,
   sendRequest,
@@ -38,8 +41,14 @@ const {
 const { profile, load: loadProfile } = useProfile()
 const toast = useToast()
 
-if (!loaded.value) void load()
+// The nav badge may have loaded edges already; this still runs because it also
+// fetches the per-friend stats that the light path skips.
+void load()
 if (!profile.value) void loadProfile()
+
+// Stamped on the way OUT, so "New" chips survive the visit that revealed them
+// instead of clearing as the list paints.
+onUnmounted(markSeen)
 
 const query = ref('')
 const searching = ref(false)
@@ -382,12 +391,27 @@ async function onRemove(edge: FriendEdge) {
         aria-labelledby="friends-heading"
         class="flex flex-col gap-4"
       >
-        <h2
-          id="friends-heading"
-          class="text-sm font-medium text-highlighted"
-        >
-          Your friends
-        </h2>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h2
+            id="friends-heading"
+            class="text-sm font-medium text-highlighted"
+          >
+            Your friends
+          </h2>
+          <!-- Stated once at the top as well as chipped per card, so an
+               acceptance registers without having to scan the grid for a badge. -->
+          <p
+            v-if="newlyAccepted.length > 0"
+            class="flex items-center gap-1.5 text-sm text-primary"
+          >
+            <UIcon
+              name="i-lucide-user-check"
+              class="size-4"
+            />
+            {{ newlyAccepted.length }}
+            {{ newlyAccepted.length === 1 ? 'request was' : 'requests were' }} accepted
+          </p>
+        </div>
 
         <div
           v-if="loading && accepted.length === 0"
@@ -417,6 +441,7 @@ async function onRemove(edge: FriendEdge) {
             :edge="edge"
             :stats="stats[edge.friend_id]"
             :removing="busyId === edge.friendship_id"
+            :is-new="isNewlyAccepted(edge)"
             @remove="onRemove"
             @view="onViewAvatar"
           />

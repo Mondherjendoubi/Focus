@@ -294,7 +294,10 @@ export interface FriendEdge {
   avatar_url: string | null
   status: FriendshipStatus
   direction: FriendDirection
+  /** When the request was sent. */
   created_at: Timestamp
+  /** When it was accepted — null while still pending. */
+  responded_at: Timestamp | null
 }
 
 /** A `find_profile_by_username()` hit. Three fields, by design. */
