@@ -27,6 +27,39 @@ const state = reactive({
 const saving = ref(false)
 const formError = ref<string | null>(null)
 
+// ---------------------------------------------------------------------------
+// FA-019 — avatar. Deliberately OUTSIDE the profile form: an upload commits
+// immediately, so burying it behind "Save changes" would mean the picture had
+// already changed while the button still implied it hadn't.
+// ---------------------------------------------------------------------------
+
+const { uploading, error: avatarError, uploadAvatar, removeAvatar } = useAvatar()
+const fileInput = ref<HTMLInputElement | null>(null)
+
+function pickAvatar() {
+  fileInput.value?.click()
+}
+
+async function onAvatarPicked(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  // Reset immediately: without this, re-picking the SAME file after a failed
+  // attempt fires no change event and looks like the button is dead.
+  input.value = ''
+  if (!file) return
+
+  const url = await uploadAvatar(file)
+  if (url !== null) {
+    toast.add({ title: 'Picture updated', icon: 'i-lucide-check', color: 'success' })
+  }
+}
+
+async function onAvatarRemove() {
+  if (await removeAvatar()) {
+    toast.add({ title: 'Picture removed', icon: 'i-lucide-check', color: 'neutral' })
+  }
+}
+
 // Timezone catalogue — `Intl.supportedValuesOf` is available in every browser
 // that runs Nuxt UI 4. Fall back defensively so a very old browser still
 // gets the current value as an option instead of an empty picker.
@@ -271,7 +304,72 @@ async function onSubmit(event: FormSubmitEvent<typeof state>) {
         :actions="[{ label: 'Retry', color: 'error', variant: 'solid', onClick: () => load() }]"
       />
 
-      <UCard v-else-if="profile">
+      <!-- Its own card because it saves on pick, not on submit. -->
+      <UCard v-if="profile">
+        <div class="flex flex-wrap items-center gap-4">
+          <UserAvatar
+            :name="profile.display_name"
+            :username="profile.username"
+            :src="profile.avatar_url"
+            size="xl"
+          />
+          <div class="flex min-w-0 flex-col gap-2">
+            <div>
+              <p class="text-sm font-medium text-highlighted">
+                Profile picture
+              </p>
+              <p class="text-xs text-muted">
+                Shown to friends. Saves as soon as you pick one.
+              </p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <UButton
+                icon="i-lucide-upload"
+                size="sm"
+                color="neutral"
+                variant="outline"
+                :loading="uploading"
+                :disabled="uploading"
+                @click="pickAvatar"
+              >
+                {{ profile.avatar_url ? 'Change' : 'Upload' }}
+              </UButton>
+              <UButton
+                v-if="profile.avatar_url"
+                icon="i-lucide-trash-2"
+                size="sm"
+                color="neutral"
+                variant="ghost"
+                :disabled="uploading"
+                @click="onAvatarRemove"
+              >
+                Remove
+              </UButton>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hidden native input: UButton above is the visible control, so the
+             file picker keeps the app's styling without a custom widget. -->
+        <input
+          ref="fileInput"
+          type="file"
+          :accept="AVATAR_ACCEPT"
+          class="hidden"
+          @change="onAvatarPicked"
+        >
+
+        <UAlert
+          v-if="avatarError"
+          class="mt-4"
+          color="error"
+          variant="soft"
+          icon="i-lucide-triangle-alert"
+          :title="avatarError"
+        />
+      </UCard>
+
+      <UCard v-if="profile">
         <UForm
           :state="state"
           :validate="validate"

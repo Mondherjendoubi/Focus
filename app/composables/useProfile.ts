@@ -48,7 +48,7 @@ export function useProfile() {
    * Returns the fresh row on success; throws with a rendered message otherwise
    * so the caller can bind it to a form error.
    */
-  async function update(patch: Partial<Pick<Profile, 'display_name' | 'username' | 'timezone' | 'daily_goal_minutes' | 'week_starts_on'>>) {
+  async function update(patch: Partial<Pick<Profile, 'display_name' | 'username' | 'avatar_url' | 'timezone' | 'daily_goal_minutes' | 'week_starts_on'>>) {
     if (!user.value) throw new Error('Not signed in.')
     const { data, error: err } = await supabase
       .from('profiles')

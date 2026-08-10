@@ -269,16 +269,24 @@ async function onRemove(edge: FriendEdge) {
             v-else-if="result"
             class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-default p-3"
           >
-            <div class="min-w-0">
-              <p class="truncate text-sm font-medium text-highlighted">
-                {{ result.display_name?.trim() || `@${result.username}` }}
-              </p>
-              <p
-                v-if="result.display_name"
-                class="truncate text-xs text-muted"
-              >
-                @{{ result.username }}
-              </p>
+            <div class="flex min-w-0 items-center gap-3">
+              <UserAvatar
+                :name="result.display_name"
+                :username="result.username"
+                :src="result.avatar_url"
+                size="sm"
+              />
+              <div class="min-w-0">
+                <p class="truncate text-sm font-medium text-highlighted">
+                  {{ result.display_name?.trim() || `@${result.username}` }}
+                </p>
+                <p
+                  v-if="result.display_name"
+                  class="truncate text-xs text-muted"
+                >
+                  @{{ result.username }}
+                </p>
+              </div>
             </div>
 
             <!-- The unique index is on the pair, so a reverse request would

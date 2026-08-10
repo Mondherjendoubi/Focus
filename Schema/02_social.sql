@@ -44,8 +44,19 @@ end $$;
 
 -- Partial: a null username is "not discoverable", and any number of users may
 -- be undiscoverable. Only claimed handles have to be distinct.
-create unique index if not exists profiles_username_unique
-  on profiles (username) where username is not null;
+--
+-- Indexed on `lower(username)` rather than `username`. The check constraint
+-- above already forbids uppercase, so this looks redundant — but relying on a
+-- constraint to guarantee lookup correctness is brittle. If the constraint were
+-- ever dropped, relaxed, or bypassed, a row storing 'Yosr' would become
+-- permanently unfindable AND could coexist with 'yosr'. Cheap insurance.
+--
+-- Dropped first so re-running this file upgrades an index created by an
+-- earlier version — `create index if not exists` would silently keep the old
+-- case-sensitive definition.
+drop index if exists profiles_username_unique;
+create unique index profiles_username_unique
+  on profiles (lower(username)) where username is not null;
 
 
 -- ---------------------------------------------------------------------
@@ -150,13 +161,22 @@ create trigger friendships_guard_trg
 -- the three fields needed to render "is this the right person?".
 -- ---------------------------------------------------------------------
 
+-- Lowered on BOTH sides. Lowering only the input assumes every stored value is
+-- already lowercase, which is true only for as long as the check constraint
+-- holds — and a row that slipped through as 'Yosr' would then be invisible to
+-- every possible search, with no way for either user to tell why.
+--
+-- This does NOT search `display_name`, deliberately. Display names are not
+-- unique, so matching them would return a list rather than a person, and they
+-- are usually real names — letting anyone search those is a different and much
+-- larger privacy decision than looking up a handle somebody chose.
 create or replace function find_profile_by_username(p_username text)
 returns table (id uuid, username text, display_name text)
 language sql security definer set search_path = public stable as $$
   select p.id, p.username, p.display_name
   from profiles p
   where auth.uid() is not null
-    and p.username = lower(trim(p_username))
+    and lower(p.username) = lower(trim(p_username))
     and p.id <> auth.uid()
   limit 1
 $$;

@@ -42,6 +42,7 @@ const active = useActiveSession()
 const {
   session,
   block,
+  blocksStarted,
   elapsedSeconds,
   isPaused,
   isStale,
@@ -151,17 +152,27 @@ const currentTemplateBlock = computed<SessionTemplateBlock | null>(() => {
   return sessionTemplateBlocks.value.find(tb => tb.id === b.template_block_id) ?? null
 })
 
+/**
+ * How far into the template this session is, whether or not a block is open.
+ *
+ * `block` is null BETWEEN blocks — which is exactly when "what's next?" gets
+ * asked. Falling back to 0 there rewound a session sitting at step 7 back to
+ * step 1, and had `maybeAdvanceToNextBlock` offer to restart the template from
+ * the top with the first block's duration. `blocksStarted` is `max(position)+1`
+ * read from the server, so it stays right across a reload too.
+ */
+const templatePosition = computed(() =>
+  block.value === null ? blocksStarted.value : block.value.position + 1
+)
+
 const nextTemplateBlock = computed<SessionTemplateBlock | null>(() => {
   if (sessionTemplateBlocks.value.length === 0) return null
-  const nextIndex = block.value === null ? 0 : block.value.position + 1
-  return sessionTemplateBlocks.value[nextIndex] ?? null
+  return sessionTemplateBlocks.value[templatePosition.value] ?? null
 })
 
 const templateProgress = computed(() => {
   if (sessionTemplateBlocks.value.length === 0) return null
-  const total = sessionTemplateBlocks.value.length
-  const done = block.value === null ? 0 : block.value.position + 1
-  return { done, total }
+  return { done: templatePosition.value, total: sessionTemplateBlocks.value.length }
 })
 
 const currentTopic = computed<Topic | null>(() => {
@@ -282,18 +293,37 @@ async function onResume() {
   }
 }
 
+/**
+ * Ending a block is not undoable — `end_block` stamps `ended_at` and there is
+ * no reopen RPC — so it asks first. It used to fire on the click, which put a
+ * destructive action one stray tap away from a running timer.
+ */
+const endBlockPromptOpen = ref(false)
+const endingBlock = ref(false)
+
+function openEndBlockPrompt() {
+  endBlockPromptOpen.value = true
+}
+
 async function onEndBlock() {
-  await endBlock()
-  if (activeError.value) {
-    toast.add({
-      title: 'Could not end block',
-      description: activeError.value,
-      color: 'error',
-      icon: 'i-lucide-triangle-alert'
-    })
-    return
+  if (endingBlock.value) return
+  endingBlock.value = true
+  try {
+    await endBlock()
+    if (activeError.value) {
+      toast.add({
+        title: 'Could not end block',
+        description: activeError.value,
+        color: 'error',
+        icon: 'i-lucide-triangle-alert'
+      })
+      return
+    }
+    endBlockPromptOpen.value = false
+    await maybeAdvanceToNextBlock()
+  } finally {
+    endingBlock.value = false
   }
-  await maybeAdvanceToNextBlock()
 }
 
 const endPromptOpen = ref(false)
@@ -624,7 +654,7 @@ const timerAnnouncement = computed(() => {
             :loading="activeLoading"
             @pause="onPause"
             @resume="onResume"
-            @end-block="onEndBlock"
+            @end-block="openEndBlockPrompt"
             @end-session="openEndPrompt"
           />
 
@@ -688,6 +718,43 @@ const timerAnnouncement = computed(() => {
             @click="milestones = []"
           >
             Nice
+          </UButton>
+        </div>
+      </template>
+    </UModal>
+
+    <!-- Confirm before ending a block. `end_block` stamps `ended_at` and there
+         is no reopen RPC, so this is a one-way door sitting next to Pause. -->
+    <UModal
+      v-model:open="endBlockPromptOpen"
+      title="End this block?"
+      :ui="{ content: 'sm:max-w-md' }"
+    >
+      <template #body>
+        <p class="text-sm text-default">
+          The time you've focused so far is kept. This block closes now and
+          can't be reopened.
+        </p>
+      </template>
+
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton
+            color="neutral"
+            variant="ghost"
+            :disabled="endingBlock"
+            @click="endBlockPromptOpen = false"
+          >
+            Keep going
+          </UButton>
+          <UButton
+            color="primary"
+            icon="i-lucide-square"
+            :loading="endingBlock"
+            :disabled="endingBlock"
+            @click="onEndBlock"
+          >
+            End block
           </UButton>
         </div>
       </template>

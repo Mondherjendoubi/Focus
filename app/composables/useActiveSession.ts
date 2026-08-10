@@ -33,6 +33,18 @@ export function useActiveSession() {
   const block = useState<SessionBlock | null>('active:block', () => null)
   const pause = useState<BlockPause | null>('active:pause', () => null)
 
+  /**
+   * How many blocks this session has started — `max(position) + 1`, matching
+   * how `start_block` assigns them.
+   *
+   * Needed because `block` is null BETWEEN blocks, and "where am I in the
+   * template" cannot be answered from a block that does not exist. Deriving it
+   * from `block` alone meant that ending step 7 rewound the UI to step 1 and
+   * offered to start the template from the top. This survives a reload, which
+   * a locally-remembered position would not.
+   */
+  const blocksStarted = useState<number>('active:blocksStarted', () => 0)
+
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -169,6 +181,27 @@ export function useActiveSession() {
       session.value = (sessionRes.data as Session | null) ?? null
       block.value = (blockRes.data as SessionBlock | null) ?? null
       pause.value = (pauseRes.data as BlockPause | null) ?? null
+
+      // Second round trip, and only when a session is actually live: the
+      // session id is not known until the query above resolves, so this cannot
+      // join the parallel batch. Scoped by session_id, not user_id — RLS
+      // already restricts the rows to this user.
+      if (session.value !== null) {
+        const positionRes = await supabase
+          .from('session_blocks')
+          .select('position')
+          .eq('session_id', session.value.id)
+          .order('position', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (positionRes.error !== null) throw positionRes.error
+
+        const highest = (positionRes.data as { position: number } | null)?.position ?? null
+        blocksStarted.value = highest === null ? 0 : highest + 1
+      } else {
+        blocksStarted.value = 0
+      }
     } catch (err) {
       error.value = toMessage(err as Error)
       // Do not blank state on read failure — a transient network blip should
@@ -209,6 +242,8 @@ export function useActiveSession() {
     session.value = data as Session
     block.value = null
     pause.value = null
+    // A fresh session starts at the top of its template.
+    blocksStarted.value = 0
     loading.value = false
   }
 
@@ -239,8 +274,13 @@ export function useActiveSession() {
       return
     }
     // The RPC closes any prior open block and, by cascade, its open pause.
-    block.value = data as SessionBlock
+    const started = data as SessionBlock
+    block.value = started
     pause.value = null
+    // Read back from the row the server just assigned rather than incrementing
+    // a local counter — `start_block` owns `position`, and a counter would
+    // drift the moment two tabs raced.
+    blocksStarted.value = started.position + 1
     loading.value = false
   }
 
@@ -343,6 +383,7 @@ export function useActiveSession() {
     session.value = null
     block.value = null
     pause.value = null
+    blocksStarted.value = 0
     loading.value = false
   }
 
@@ -350,6 +391,7 @@ export function useActiveSession() {
     session,
     block,
     pause,
+    blocksStarted,
     elapsedSeconds,
     remainingSeconds,
     isPaused,

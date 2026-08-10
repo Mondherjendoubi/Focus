@@ -30,18 +30,26 @@ const isIncoming = computed(() => props.edge.direction === 'incoming')
 
 <template>
   <li class="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-    <div class="min-w-0">
-      <p class="truncate text-sm font-medium text-highlighted">
-        {{ name }}
-      </p>
-      <p class="text-xs text-muted">
+    <div class="flex min-w-0 items-center gap-3">
+      <UserAvatar
+        :name="edge.display_name"
+        :username="edge.username"
+        :src="edge.avatar_url"
+        size="sm"
+      />
+      <div class="min-w-0">
+        <p class="truncate text-sm font-medium text-highlighted">
+          {{ name }}
+        </p>
+        <p class="text-xs text-muted">
         <template v-if="isIncoming">
           wants to follow your progress
         </template>
         <template v-else>
           waiting for them to accept
         </template>
-      </p>
+        </p>
+      </div>
     </div>
 
     <div class="flex items-center gap-2">

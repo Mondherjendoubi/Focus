@@ -54,16 +54,23 @@ const deltaTone = computed(() => {
   <UCard :ui="{ body: 'p-4 sm:p-5' }">
     <div class="flex flex-col gap-4">
       <div class="flex items-start justify-between gap-3">
-        <div class="min-w-0">
-          <p class="truncate text-sm font-medium text-highlighted">
-            {{ name }}
-          </p>
-          <p
-            v-if="edge.username && edge.display_name"
-            class="truncate text-xs text-muted"
-          >
-            @{{ edge.username }}
-          </p>
+        <div class="flex min-w-0 items-center gap-3">
+          <UserAvatar
+            :name="edge.display_name"
+            :username="edge.username"
+            :src="edge.avatar_url"
+          />
+          <div class="min-w-0">
+            <p class="truncate text-sm font-medium text-highlighted">
+              {{ name }}
+            </p>
+            <p
+              v-if="edge.username && edge.display_name"
+              class="truncate text-xs text-muted"
+            >
+              @{{ edge.username }}
+            </p>
+          </div>
         </div>
         <UButton
           icon="i-lucide-user-minus"

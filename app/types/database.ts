@@ -29,6 +29,11 @@ export interface Profile {
    * having an account. Added by `Schema/02_social.sql`.
    */
   username: string | null
+  /**
+   * Public URL of the uploaded avatar, or null. Added by
+   * `Schema/03_avatars.sql`; the object lives at `avatars/<uid>/<ts>.jpg`.
+   */
+  avatar_url: string | null
   timezone: string
   daily_goal_minutes: number
   /** ISO weekday: 1 = Monday. */
@@ -286,6 +291,7 @@ export interface FriendEdge {
   friend_id: string
   username: string | null
   display_name: string | null
+  avatar_url: string | null
   status: FriendshipStatus
   direction: FriendDirection
   created_at: Timestamp
@@ -296,6 +302,7 @@ export interface ProfileLookup {
   id: string
   username: string | null
   display_name: string | null
+  avatar_url: string | null
 }
 
 /**

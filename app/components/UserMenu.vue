@@ -5,6 +5,7 @@ const { user, signOut } = useAuth()
 const supabase = useSupabase()
 
 const displayName = ref<string | null>(null)
+const avatarUrl = ref<string | null>(null)
 const loading = ref(false)
 
 const email = computed(() => user.value?.email ?? '')
@@ -17,20 +18,23 @@ const initial = computed(() => (label.value.charAt(0) || '?').toUpperCase())
 watch(user, async (u) => {
   if (!u) {
     displayName.value = null
+    avatarUrl.value = null
     return
   }
   loading.value = true
   const { data, error } = await supabase
     .from('profiles')
-    .select('display_name')
+    .select('display_name, avatar_url')
     .maybeSingle()
   loading.value = false
   if (error) {
-    // Non-fatal: surface silently, fall back to email local-part.
+    // Non-fatal: surface silently, fall back to email local-part and initials.
     displayName.value = null
+    avatarUrl.value = null
     return
   }
   displayName.value = data?.display_name ?? null
+  avatarUrl.value = data?.avatar_url ?? null
 }, { immediate: true })
 
 async function handleSignOut() {
@@ -78,6 +82,8 @@ const items = computed<DropdownMenuItem[][]>(() => [
       :aria-label="`Account menu for ${label}`"
     >
       <UAvatar
+        :src="avatarUrl ?? undefined"
+        :alt="label"
         :text="initial"
         size="xs"
       />
