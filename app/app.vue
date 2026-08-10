@@ -75,6 +75,21 @@ useSeoMeta({
 // auth resolves so we never flash the logged-out shell at a returning user.
 const mobileOpen = ref(false)
 
+/**
+ * Auth pages own their whole screen.
+ *
+ * `definePageMeta({ layout: false })` on login/signup only disables the
+ * `layouts/` mechanism — it does NOT suppress `app.vue`, which wraps every
+ * route. So without this those pages rendered the app header (logo, colour
+ * toggle) and the footer AROUND a full-height card that already draws its own
+ * centred `AppLogo`: two logos, and chrome on a screen meant to stand alone.
+ *
+ * Keyed off that existing meta flag rather than a hardcoded path list, so a
+ * future standalone page opts in the same way and this never drifts.
+ */
+const route = useRoute()
+const chromeless = computed(() => route.meta.layout === false)
+
 // Browser-tab timer: while a block is running, the tab shows the countdown so
 // the user can watch it from another tab.
 //
@@ -116,8 +131,12 @@ useHead({
          white and the cards read as nothing but hairlines.
          Dark stays on `bg-default`: `bg-muted` is neutral-800 there, LIGHTER
          than the neutral-900 cards sit on, which would invert the elevation. -->
+    <!-- Login / signup: the page IS the screen. No header, no sidebar, no
+         footer — see `chromeless` above. -->
+    <NuxtPage v-if="chromeless" />
+
     <div
-      v-if="ready && isLoggedIn"
+      v-else-if="ready && isLoggedIn"
       class="flex min-h-screen bg-muted dark:bg-default"
     >
       <AppSidebar class="hidden lg:flex" />
