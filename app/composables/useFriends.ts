@@ -24,6 +24,22 @@ import type { FriendEdge, FriendStats, ProfileLookup } from '~/types/database'
 /** Mirrors the DB check constraint so the user hears about it before a round trip. */
 export const USERNAME_PATTERN = /^[a-z0-9_]{3,20}$/
 
+/**
+ * The one way a typed handle becomes a stored one.
+ *
+ * Handles are lowercase by constraint — `^[a-z0-9_]{3,20}$` rejects anything
+ * else — so search is case-insensitive for free: both ends of the comparison
+ * are lowered. Every entry point must normalise identically, which is why this
+ * is shared rather than inlined; the settings field and the search box had
+ * drifted apart on the leading `@` alone.
+ *
+ * The `@` is stripped because both fields render an at-sign icon, so typing it
+ * is the natural thing to do.
+ */
+export function normaliseHandle(input: string): string {
+  return input.trim().replace(/^@+/, '').trim().toLowerCase()
+}
+
 /** PostgREST serialises `bigint` as a string to protect precision. */
 function num(value: unknown): number {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0
@@ -112,7 +128,7 @@ export function useFriends() {
 
   /** Exact match only — the RPC does no prefix search, by design. */
   async function findByUsername(username: string): Promise<ProfileLookup | null> {
-    const handle = username.trim().toLowerCase().replace(/^@/, '')
+    const handle = normaliseHandle(username)
     if (!USERNAME_PATTERN.test(handle)) {
       fail(new Error('Handles are 3–20 characters: letters, numbers and underscores.'))
     }

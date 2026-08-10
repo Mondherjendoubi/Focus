@@ -50,7 +50,46 @@ const searchError = ref<string | null>(null)
 const busyId = ref<string | null>(null)
 
 /** You cannot be found if you have not claimed a handle — and neither can they. */
-const hasHandle = computed(() => (profile.value?.username ?? null) !== null)
+const myHandle = computed(() => profile.value?.username ?? null)
+const hasHandle = computed(() => myHandle.value !== null)
+
+/**
+ * Your own handle, shown back to you.
+ *
+ * It was previously visible in exactly one place — the settings input you typed
+ * it into — so you set it once and then had no way to answer "what's your
+ * handle?" without going to look it up. A handle nobody can recall is a handle
+ * nobody can be given.
+ */
+const copied = ref(false)
+let copiedTimer: ReturnType<typeof setTimeout> | null = null
+
+onUnmounted(() => {
+  if (copiedTimer !== null) clearTimeout(copiedTimer)
+})
+
+async function copyHandle() {
+  const handle = myHandle.value
+  if (handle === null) return
+
+  try {
+    await navigator.clipboard.writeText(`@${handle}`)
+    copied.value = true
+    if (copiedTimer !== null) clearTimeout(copiedTimer)
+    copiedTimer = setTimeout(() => {
+      copied.value = false
+    }, 2000)
+  } catch {
+    // The clipboard API needs a secure context and permission, and refuses
+    // silently otherwise. The handle is printed right next to the button
+    // regardless, so this is not worth an error — just say it out loud.
+    toast.add({
+      title: `Your handle is @${handle}`,
+      icon: 'i-lucide-at-sign',
+      color: 'neutral'
+    })
+  }
+}
 
 /** An edge that already exists with the search result, if any. */
 const existing = computed(() => (result.value ? existingEdgeWith(result.value.id) : null))
@@ -155,6 +194,37 @@ async function onRemove(edge: FriendEdge) {
         :actions="[{ label: 'Open settings', to: '/settings', color: 'neutral', variant: 'outline' }]"
       />
 
+      <!-- Once set, the handle stays on screen. This is the page you are on
+           when someone asks what your handle is, so it is the page that has to
+           be able to answer. -->
+      <UCard
+        v-else-if="hasHandle && !error"
+        :ui="{ body: 'p-4 sm:p-5' }"
+      >
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-xs font-medium uppercase tracking-wide text-muted">
+              Your handle
+            </p>
+            <p class="mt-1 truncate font-display text-lg font-semibold tracking-tight text-highlighted">
+              @{{ myHandle }}
+            </p>
+            <p class="mt-0.5 text-xs text-muted">
+              Give this to people so they can add you.
+            </p>
+          </div>
+          <UButton
+            :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
+            :color="copied ? 'primary' : 'neutral'"
+            variant="outline"
+            size="sm"
+            @click="copyHandle"
+          >
+            {{ copied ? 'Copied' : 'Copy' }}
+          </UButton>
+        </div>
+      </UCard>
+
       <UCard>
         <template #header>
           <h2 class="text-sm font-medium text-highlighted">
@@ -246,12 +316,23 @@ async function onRemove(edge: FriendEdge) {
             </UButton>
           </div>
 
-          <p
+          <!-- Naming the likely cause matters here. Search matches the handle
+               only, never the display name, and an account that has never set
+               a handle is invisible — which looks identical to a typo from the
+               searcher's side. Blaming spelling alone sends people hunting for
+               a mistake that isn't theirs. -->
+          <div
             v-else-if="searched && !searching"
-            class="text-sm text-muted"
+            class="flex flex-col gap-1 text-sm"
           >
-            No one with that handle. Handles are exact — check the spelling.
-          </p>
+            <p class="text-muted">
+              No one with that handle.
+            </p>
+            <p class="text-xs text-muted">
+              Handles are exact, and they're not the same as a display name — if
+              that person hasn't set one in their settings, they can't be found yet.
+            </p>
+          </div>
         </form>
       </UCard>
 

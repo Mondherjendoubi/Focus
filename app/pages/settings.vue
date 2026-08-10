@@ -102,8 +102,10 @@ function detectTimezone() {
 function validate(data: typeof state) {
   const errs: Array<{ name: string, message: string }> = []
   // Mirrors the DB check constraint, so the user hears about it before a round
-  // trip. Blank is valid — it means "leave me undiscoverable".
-  const handle = data.username.trim().toLowerCase()
+  // trip. Blank is valid — it means "leave me undiscoverable". Normalised
+  // through the same helper the search box uses, so `@Yosr` here and `@Yosr`
+  // there cannot disagree about what handle that is.
+  const handle = normaliseHandle(data.username)
   if (handle.length > 0 && !USERNAME_PATTERN.test(handle)) {
     errs.push({
       name: 'username',
@@ -211,7 +213,7 @@ async function onSubmit(event: FormSubmitEvent<typeof state>) {
   // Normalize empty display name to null — the column is nullable and an
   // empty string reads as "the user set it to empty", which isn't the intent.
   const trimmed = event.data.display_name.trim()
-  const handle = event.data.username.trim().toLowerCase()
+  const handle = normaliseHandle(event.data.username)
   const patch = {
     display_name: trimmed.length > 0 ? trimmed : null,
     // Blank clears the handle back to null — i.e. removes you from search.
