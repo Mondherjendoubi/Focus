@@ -33,14 +33,16 @@ const formError = ref<string | null>(null)
 // already changed while the button still implied it hadn't.
 // ---------------------------------------------------------------------------
 
-const { uploading, error: avatarError, uploadAvatar, removeAvatar } = useAvatar()
+const { uploading, error: avatarError, uploadBlob, removeAvatar } = useAvatar()
 const fileInput = ref<HTMLInputElement | null>(null)
+const cropperOpen = ref(false)
+const pendingFile = ref<File | null>(null)
 
 function pickAvatar() {
   fileInput.value?.click()
 }
 
-async function onAvatarPicked(event: Event) {
+function onAvatarPicked(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   // Reset immediately: without this, re-picking the SAME file after a failed
@@ -48,10 +50,31 @@ async function onAvatarPicked(event: Event) {
   input.value = ''
   if (!file) return
 
-  const url = await uploadAvatar(file)
+  // Validate before opening the editor — an unreadable file should say so, not
+  // present an empty frame to drag around.
+  const invalid = validateAvatarFile(file)
+  if (invalid !== null) {
+    avatarError.value = invalid
+    return
+  }
+
+  avatarError.value = null
+  pendingFile.value = file
+  cropperOpen.value = true
+}
+
+async function onAvatarCropped(blob: Blob) {
+  const url = await uploadBlob(blob)
   if (url !== null) {
+    cropperOpen.value = false
+    pendingFile.value = null
     toast.add({ title: 'Picture updated', icon: 'i-lucide-check', color: 'success' })
   }
+}
+
+function onCropCancel() {
+  cropperOpen.value = false
+  pendingFile.value = null
 }
 
 async function onAvatarRemove() {
@@ -368,6 +391,26 @@ async function onSubmit(event: FormSubmitEvent<typeof state>) {
           :title="avatarError"
         />
       </UCard>
+
+      <!-- Crop and frame before anything is uploaded. Keyed on the file so
+           picking a different one resets zoom and position rather than
+           inheriting the last image's framing. -->
+      <UModal
+        v-model:open="cropperOpen"
+        title="Position your picture"
+        :ui="{ content: 'sm:max-w-md' }"
+        @update:open="(open) => { if (!open) onCropCancel() }"
+      >
+        <template #body>
+          <AvatarCropper
+            :key="pendingFile?.name ?? 'none'"
+            :file="pendingFile"
+            :saving="uploading"
+            @confirm="onAvatarCropped"
+            @cancel="onCropCancel"
+          />
+        </template>
+      </UModal>
 
       <UCard v-if="profile">
         <UForm

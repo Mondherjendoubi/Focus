@@ -5,8 +5,8 @@
  * Three things this handles that a bare `storage.upload()` would not:
  *
  *  1. **Re-encoding.** A phone photo is 3–8 MB and 4000px wide. Storing that
- *     means every friend card pulls megabytes to render a 40px circle. The
- *     file is drawn to a canvas at `MAX_EDGE` and re-encoded as JPEG first, so
+ *     means every friend card pulls megabytes to render a 40px circle.
+ *     `AvatarCropper` re-encodes to a 512px JPEG before this ever sees it, so
  *     what lands in the bucket is tens of kilobytes.
  *  2. **Cache busting by filename.** Uploading to a fixed path leaves the old
  *     image cached in every browser and CDN that already fetched it — the user
@@ -23,44 +23,20 @@
 
 const BUCKET = 'avatars'
 
-/** Longest edge after downscaling. Avatars render at 40–96px; 512 is generous. */
-const MAX_EDGE = 512
-
-/** Rejected before any network call. The bucket enforces its own limit too. */
+/** Rejected before any decoding. The bucket enforces its own limit too. */
 const MAX_INPUT_BYTES = 8 * 1024 * 1024
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
 export const AVATAR_ACCEPT = ACCEPTED_TYPES.join(',')
 
 /**
- * Draw to a canvas at no more than `MAX_EDGE` on the longest side and re-encode
- * as JPEG. Returns a Blob; throws if the file is not a decodable image.
+ * Checked before the cropper opens, so a bad file is refused with a sentence
+ * rather than an empty editor. Returns null when the file is acceptable.
  */
-async function downscale(file: File): Promise<Blob> {
-  const bitmap = await createImageBitmap(file)
-  try {
-    const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height))
-    const width = Math.max(1, Math.round(bitmap.width * scale))
-    const height = Math.max(1, Math.round(bitmap.height * scale))
-
-    const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
-
-    const ctx = canvas.getContext('2d')
-    if (ctx === null) throw new Error('Could not process that image.')
-    ctx.drawImage(bitmap, 0, 0, width, height)
-
-    const blob = await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob(resolve, 'image/jpeg', 0.85)
-    })
-    if (blob === null) throw new Error('Could not process that image.')
-    return blob
-  } finally {
-    // Frees the decoded pixels immediately rather than waiting for GC — these
-    // are large, and a user retrying a few times would otherwise pile them up.
-    bitmap.close()
-  }
+export function validateAvatarFile(file: File): string | null {
+  if (!ACCEPTED_TYPES.includes(file.type)) return 'Pick a JPEG, PNG or WebP image.'
+  if (file.size > MAX_INPUT_BYTES) return 'That image is too large. Pick one under 8 MB.'
+  return null
 }
 
 export function useAvatar() {
@@ -88,7 +64,12 @@ export function useAvatar() {
     }
   }
 
-  async function uploadAvatar(file: File): Promise<string | null> {
+  /**
+   * Store an already-cropped, already-encoded JPEG. Takes a Blob rather than a
+   * File because the bytes come from `AvatarCropper`'s canvas, not from disk —
+   * framing is the user's decision and belongs in the UI, not in here.
+   */
+  async function uploadBlob(blob: Blob): Promise<string | null> {
     if (uploading.value) return null
     const uid = user.value?.id
     if (!uid) {
@@ -96,20 +77,9 @@ export function useAvatar() {
       return null
     }
 
-    if (!ACCEPTED_TYPES.includes(file.type)) {
-      error.value = 'Pick a JPEG, PNG or WebP image.'
-      return null
-    }
-    if (file.size > MAX_INPUT_BYTES) {
-      error.value = 'That image is too large. Pick one under 8 MB.'
-      return null
-    }
-
     uploading.value = true
     error.value = null
     try {
-      const blob = await downscale(file)
-
       // Unique per upload — see the cache-busting note in the header.
       const path = `${uid}/${Date.now()}.jpg`
 
@@ -161,5 +131,5 @@ export function useAvatar() {
     }
   }
 
-  return { profile, uploading, error, uploadAvatar, removeAvatar }
+  return { profile, uploading, error, uploadBlob, removeAvatar }
 }

@@ -49,6 +49,21 @@ const searchError = ref<string | null>(null)
 /** Which edge is mid-write, so only that row shows a spinner. */
 const busyId = ref<string | null>(null)
 
+/** The friend whose picture is open full-size, or null. */
+const viewing = ref<FriendEdge | null>(null)
+
+const viewingName = computed(() => {
+  const edge = viewing.value
+  if (edge === null) return ''
+  const display = edge.display_name?.trim()
+  if (display && display.length > 0) return display
+  return edge.username ? `@${edge.username}` : 'Profile picture'
+})
+
+function onViewAvatar(edge: FriendEdge) {
+  viewing.value = edge
+}
+
 /** You cannot be found if you have not claimed a handle — and neither can they. */
 const myHandle = computed(() => profile.value?.username ?? null)
 const hasHandle = computed(() => myHandle.value !== null)
@@ -403,9 +418,28 @@ async function onRemove(edge: FriendEdge) {
             :stats="stats[edge.friend_id]"
             :removing="busyId === edge.friendship_id"
             @remove="onRemove"
+            @view="onViewAvatar"
           />
         </div>
       </section>
+
+      <!-- Full-size picture. `:open` is derived from the subject rather than a
+           separate boolean, so the two can never disagree about what is shown. -->
+      <UModal
+        :open="viewing !== null"
+        :title="viewingName"
+        :ui="{ content: 'sm:max-w-sm' }"
+        @update:open="(open) => { if (!open) viewing = null }"
+      >
+        <template #body>
+          <img
+            v-if="viewing?.avatar_url"
+            :src="viewing.avatar_url"
+            :alt="`${viewingName}'s profile picture`"
+            class="mx-auto w-full max-w-xs rounded-lg"
+          >
+        </template>
+      </UModal>
 
       <UCard v-if="outgoing.length > 0">
         <template #header>

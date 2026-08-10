@@ -20,7 +20,16 @@ const props = defineProps<{
   removing?: boolean
 }>()
 
-const emit = defineEmits<{ remove: [edge: FriendEdge] }>()
+const emit = defineEmits<{
+  remove: [edge: FriendEdge]
+  view: [edge: FriendEdge]
+}>()
+
+/**
+ * Only an actual picture is worth enlarging. Making the initials badge
+ * clickable would promise a bigger version of a letter.
+ */
+const canEnlarge = computed(() => (props.edge.avatar_url ?? null) !== null)
 
 const name = computed(() => {
   const display = props.edge.display_name?.trim()
@@ -55,7 +64,23 @@ const deltaTone = computed(() => {
     <div class="flex flex-col gap-4">
       <div class="flex items-start justify-between gap-3">
         <div class="flex min-w-0 items-center gap-3">
+          <!-- A real <button> when it does something, a plain div when it
+               doesn't — so keyboard focus never lands on a dead target. -->
+          <button
+            v-if="canEnlarge"
+            type="button"
+            class="shrink-0 rounded-full transition hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            :aria-label="`View ${name}'s picture`"
+            @click="emit('view', edge)"
+          >
+            <UserAvatar
+              :name="edge.display_name"
+              :username="edge.username"
+              :src="edge.avatar_url"
+            />
+          </button>
           <UserAvatar
+            v-else
             :name="edge.display_name"
             :username="edge.username"
             :src="edge.avatar_url"
