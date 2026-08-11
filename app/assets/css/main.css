@@ -41,13 +41,22 @@
   0%   { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }
+/* FA-023 — a tree earned TODAY grows out of the ground. Scoped to today's tree
+   only: once a day at most, so it stays a moment instead of becoming ambience. */
+@keyframes tutorex-grow {
+  0%   { transform: scale(0.5, 0.1); opacity: 0; }
+  70%  { transform: scale(1.04, 1.06); opacity: 1; }
+  100% { transform: scale(1, 1); opacity: 1; }
+}
 
 .animate-breathe  { animation: tutorex-breathe 4s ease-in-out infinite; }
 .animate-pop      { animation: tutorex-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
 .animate-shimmer  { background-size: 200% 100%; animation: tutorex-shimmer 2.4s linear infinite; }
+.animate-grow     { transform-origin: bottom center; animation: tutorex-grow 620ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 
 @media (prefers-reduced-motion: reduce) {
   .animate-breathe,
   .animate-pop,
-  .animate-shimmer { animation: none; }
+  .animate-shimmer,
+  .animate-grow { animation: none; }
 }

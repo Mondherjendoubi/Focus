@@ -16,6 +16,7 @@ const NO_VALUE = '—'
 /** A `local_day` is a bare calendar date, so its weekday is fixed; read it in UTC. */
 const WEEKDAY_SHORT = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'UTC' })
 const WEEKDAY_LONG = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: 'UTC' })
+const MONTH_YEAR = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })
 
 /** `Intl.DateTimeFormat` is expensive to construct and these run in render paths. */
 const dayFormatters = new Map<string, Intl.DateTimeFormat>()
@@ -145,6 +146,30 @@ export function daysInMonthOf(localDay: LocalDay): number {
   if (!date) return 30
 
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate()
+}
+
+/**
+ * Day of the month off a `local_day` label: `'2026-08-06'` is `6`. Returns 0 if
+ * the label is malformed, which no caller should treat as a real column.
+ */
+export function dayOfMonth(localDay: LocalDay | null | undefined): number {
+  const date = parseLocalDay(localDay)
+  if (!date) return 0
+
+  return date.getUTCDate()
+}
+
+/**
+ * A `local_day` as the month it falls in: `'2026-08-06'` reads as
+ * `'August 2026'`. Read in UTC like every other label formatter here — the
+ * label carries no time of day, so parsing it in the browser's zone would put
+ * anyone west of Greenwich in the previous month on the 1st.
+ */
+export function monthLabel(localDay: LocalDay | null | undefined): string {
+  const date = parseLocalDay(localDay)
+  if (!date) return NO_VALUE
+
+  return MONTH_YEAR.format(date)
 }
 
 /**

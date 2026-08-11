@@ -32,6 +32,7 @@ const items = [
   { label: 'Dashboard', to: '/dashboard', icon: 'i-lucide-chart-column' },
   { label: 'Topics', to: '/topics', icon: 'i-lucide-tags' },
   { label: 'History', to: '/history', icon: 'i-lucide-history' },
+  { label: 'Forest', to: '/forest', icon: 'i-lucide-trees' },
   { label: 'Friends', to: '/friends', icon: 'i-lucide-users' }
 ] as const
 
