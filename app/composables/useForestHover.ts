@@ -63,6 +63,27 @@ export function useForestHover(days: Ref<ForestDay[]>, host: Ref<HTMLElement | n
   }
 
   /**
+   * Dismiss on a tap anywhere else on the page.
+   *
+   * Needed only for touch, and needed badly: `pointerleave` is what closes the
+   * card for a mouse, and it never fires on a phone. Without this, tapping a
+   * tree and then scrolling away leaves the card pinned open with nothing on
+   * screen that looks like it would close it.
+   *
+   * `pointerdown` in the capture phase, so it lands before the scene's own
+   * click and a tap inside the scene is left alone for `onClick` to toggle.
+   */
+  function onDismissOutside(event: PointerEvent) {
+    if (active.value === null) return
+    const target = event.target
+    if (target instanceof Node && host.value?.contains(target)) return
+    active.value = null
+  }
+
+  onMounted(() => document.addEventListener('pointerdown', onDismissOutside, true))
+  onBeforeUnmount(() => document.removeEventListener('pointerdown', onDismissOutside, true))
+
+  /**
    * Above the mark, clamped so a tree at either end of a long panorama still
    * shows its whole card, and flipped below when the canopy is near the top.
    */

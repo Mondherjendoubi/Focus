@@ -44,7 +44,10 @@ const summary = computed(() => {
 </script>
 
 <template>
-  <div class="pointer-events-none w-[232px] rounded-xl border border-default bg-default p-3 shadow-lg">
+  <!-- `pointer-events-none` is load-bearing, not tidiness: the card sits over
+       the trees, and if it caught the pointer it would close itself the instant
+       it opened. `max-w` keeps it inside a small phone. -->
+  <div class="pointer-events-none w-[232px] max-w-[calc(100vw-2rem)] rounded-xl border border-default bg-default p-3 shadow-lg">
     <p class="text-[11px] font-medium uppercase tracking-wider text-dimmed">
       {{ heading }}
     </p>
