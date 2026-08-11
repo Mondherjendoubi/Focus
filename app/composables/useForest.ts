@@ -7,35 +7,27 @@ import type { DailyTotal, LocalDay } from '~/types/database'
  * `local_day`, is `security_invoker`, and RLS scopes it to the caller — so this
  * is one query over all time.
  *
- * Days come back sparse: a day nobody studied has no row at all. Layout is
- * therefore built from the CALENDAR and the rows are joined onto it, never the
- * other way round, or a month would silently close up its gaps and every forest
- * would look consistent.
+ * Days come back sparse: a day nobody studied has no row at all. The list below
+ * is therefore built from the CALENDAR with the rows joined onto it, never the
+ * other way round — otherwise a forest would silently close up its gaps and
+ * every history would look like an unbroken run.
+ *
+ * Both scenes (`ForestPanorama`, `ForestTrail`) walk this one flat list and lay
+ * it out their own way, so the two never disagree about what happened.
  */
 
-/** What one day contributes to the forest floor. */
-export type DayKind = 'tree' | 'sprout' | 'bare'
+/** What one day contributes to the scene. */
+export type DayKind = 'tree' | 'seedling' | 'bare'
 
 export interface ForestDay {
   localDay: LocalDay
-  /** Day of the month, 1-based — this is the column the mark sits in. */
-  dayOfMonth: number
   kind: DayKind
   focusSeconds: number
-  /**
-   * Focus over goal, so 1 is exactly on target and 2 is double. 0 on a day with
-   * no goal to be a ratio of. Drives how deep a tree's green goes.
-   */
+  /** Focus over goal: 1 is exactly on target, 2 is double. 0 with no goal set. */
   ratio: number
-}
-
-export interface ForestMonth {
-  /** `'YYYY-MM'` — stable key, and what the bands are grouped by. */
-  key: string
-  label: string
-  /** Every day of the month up to today, oldest first. Never sparse. */
-  days: ForestDay[]
-  treeCount: number
+  /** True on the first day of its month — where a scene draws the month marker. */
+  monthStart: boolean
+  monthName: string
 }
 
 /** PostgREST sends bigint as a string, and `focus_seconds` is null on a break-only day. */
@@ -59,9 +51,6 @@ type ForestRow = Pick<DailyTotal, 'local_day' | 'focus_seconds' | 'goal_minutes'
  * `check (>= 0)` — so for a user who switched their goal off, every day with a
  * single logged minute comes back `goal_met = true`. `friend_days` guards this
  * server-side and says why; this view does not, so the client must.
- *
- * Exported because the page needs the same rule to decide whether a forest is
- * even possible, and two copies of it would be one copy too many.
  */
 export function earnedTree(row: Pick<ForestRow, 'goal_minutes' | 'goal_met'>): boolean {
   return num(row.goal_minutes) > 0 && row.goal_met === true
@@ -70,11 +59,14 @@ export function earnedTree(row: Pick<ForestRow, 'goal_minutes' | 'goal_met'>): b
 export function useForest() {
   const supabase = useSupabase()
 
-  const months = ref<ForestMonth[]>([])
+  /** Oldest first. The panorama reads it forwards, the trail backwards. */
+  const days = ref<ForestDay[]>([])
   const treeCount = ref(0)
+  const seedlingCount = ref(0)
+  /** Month with the most trees, as the handoff's third stat card. */
+  const bestMonth = ref<string | null>(null)
   /** The profile's daily goal. 0 means no tree can ever be earned. */
   const goalMinutes = ref(0)
-  /** Today in the PROFILE's zone — the one tree allowed to animate. */
   const today = ref<LocalDay | null>(null)
   const pending = ref(true)
   const error = ref<string | null>(null)
@@ -119,73 +111,94 @@ export function useForest() {
   function build(rows: ForestRow[]) {
     const byDay = new Map(rows.map(row => [row.local_day, row]))
 
-    // Bands run from the first day that has any row to today. Starting at the
-    // first row rather than at signup keeps a long-dormant account from opening
-    // on a wall of empty months.
+    // The forest starts at the first day with any row, not at signup: a
+    // long-dormant account should not open on a wall of empty months.
     const first = rows[0]?.local_day ?? null
     const last = today.value
     if (first === null || last === null) {
-      months.value = []
+      days.value = []
       treeCount.value = 0
+      seedlingCount.value = 0
+      bestMonth.value = null
       return
     }
 
-    const out: ForestMonth[] = []
-    let total = 0
-    let cursor = monthFirstDay(first)
+    // Month names alone read better under the trees, but they stop being unique
+    // the moment a forest spans a new year — so the year joins them only then.
+    const spansYears = first.slice(0, 4) !== last.slice(0, 4)
+
+    const out: ForestDay[] = []
+    const treesPerMonth = new Map<string, { name: string, trees: number }>()
+    let trees = 0
+    let seedlings = 0
+    let cursor = `${first.slice(0, 7)}-01`
 
     while (cursor <= last) {
       const length = daysInMonthOf(cursor)
-      const days: ForestDay[] = []
-      let trees = 0
+      const key = cursor.slice(0, 7)
+      const name = spansYears ? monthLabel(cursor) : monthName(cursor)
 
       for (let d = 1; d <= length; d++) {
-        const localDay = withDayOfMonth(cursor, d)
+        const localDay = `${key}-${String(d).padStart(2, '0')}`
         // A month in progress stops at today rather than drawing a fortnight of
         // ground the user has not lived yet.
         if (localDay > last) break
+        if (localDay < first) continue
 
         const row = byDay.get(localDay)
         const focusSeconds = num(row?.focus_seconds)
         const goal = num(row?.goal_minutes)
         const tree = row !== undefined && earnedTree(row)
-        if (tree) trees++
 
-        days.push({
+        let kind: DayKind = 'bare'
+        if (tree) {
+          kind = 'tree'
+          trees++
+          const bucket = treesPerMonth.get(key) ?? { name, trees: 0 }
+          bucket.trees++
+          treesPerMonth.set(key, bucket)
+        } else if (focusSeconds > 0) {
+          kind = 'seedling'
+          seedlings++
+        }
+
+        out.push({
           localDay,
-          dayOfMonth: d,
-          kind: tree ? 'tree' : focusSeconds > 0 ? 'sprout' : 'bare',
+          kind,
           focusSeconds,
-          // Guarded: `goal` is 0 for a user with no daily goal, and that day is
-          // never a tree anyway, so the ratio it would never use stays 0.
-          ratio: goal > 0 ? focusSeconds / (goal * 60) : 0
+          // Guarded: `goal` is 0 for a user with no daily goal, and such a day
+          // is never a tree anyway, so the ratio it would never use stays 0.
+          ratio: goal > 0 ? focusSeconds / (goal * 60) : 0,
+          monthStart: out.length === 0 || out[out.length - 1]!.localDay.slice(0, 7) !== key,
+          monthName: name
         })
-      }
-
-      if (days.length > 0) {
-        out.push({ key: cursor.slice(0, 7), label: monthLabel(cursor), days, treeCount: trees })
-        total += trees
       }
 
       cursor = nextMonthFirstDay(cursor)
     }
 
-    // Newest first: the month you are living in is the one you came to see.
-    out.reverse()
-    months.value = out
-    treeCount.value = total
+    let best: { name: string, trees: number } | null = null
+    for (const bucket of treesPerMonth.values()) {
+      if (best === null || bucket.trees > best.trees) best = bucket
+    }
+
+    days.value = out
+    treeCount.value = trees
+    seedlingCount.value = seedlings
+    bestMonth.value = best?.name ?? null
   }
 
-  return { months, treeCount, goalMinutes, today, pending, error, refresh }
-}
-
-/** `'2026-08-06'` → `'2026-08-01'`. String work only: these labels carry no time. */
-function monthFirstDay(localDay: LocalDay): LocalDay {
-  return `${localDay.slice(0, 7)}-01`
-}
-
-function withDayOfMonth(monthStart: LocalDay, day: number): LocalDay {
-  return `${monthStart.slice(0, 7)}-${String(day).padStart(2, '0')}`
+  return {
+    days,
+    treeCount,
+    seedlingCount,
+    bestMonth,
+    goalMinutes,
+    today,
+    pending,
+    error,
+    refresh
+  }
 }
 
 function nextMonthFirstDay(monthStart: LocalDay): LocalDay {

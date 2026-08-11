@@ -17,6 +17,7 @@ const NO_VALUE = '—'
 const WEEKDAY_SHORT = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'UTC' })
 const WEEKDAY_LONG = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: 'UTC' })
 const MONTH_YEAR = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+const MONTH_ONLY = new Intl.DateTimeFormat('en-US', { month: 'long', timeZone: 'UTC' })
 
 /** `Intl.DateTimeFormat` is expensive to construct and these run in render paths. */
 const dayFormatters = new Map<string, Intl.DateTimeFormat>()
@@ -170,6 +171,18 @@ export function monthLabel(localDay: LocalDay | null | undefined): string {
   if (!date) return NO_VALUE
 
   return MONTH_YEAR.format(date)
+}
+
+/**
+ * The month alone: `'2026-08-06'` reads as `'August'`. For labels that already
+ * sit inside a known year — drop it and a forest spanning two Junes stops being
+ * readable, which is why callers pick between this and `monthLabel`.
+ */
+export function monthName(localDay: LocalDay | null | undefined): string {
+  const date = parseLocalDay(localDay)
+  if (!date) return NO_VALUE
+
+  return MONTH_ONLY.format(date)
 }
 
 /**

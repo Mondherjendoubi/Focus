@@ -27,6 +27,57 @@
   --tutorex-highlight: #FFDB4D;
 }
 
+/* FA-023 — the forest panorama's palette, from the 5a/5b handoff.
+   These are illustration colours, not chrome: the sky, the hills and the five
+   canopy greens are calibrated against each other as one picture, so they are
+   the same sanctioned exception `topics.color` is. Keeping them here rather
+   than as hexes in the component means the whole scene can be re-lit in one
+   place — which is exactly what the dark block below does. The handoff is
+   light-only; dusk is ours. */
+.forest-scene {
+  --forest-sky-top: #DBEAFE;
+  --forest-sky-bottom: #F8FAFC;
+  --forest-sun: #FDE68A;
+  --forest-hill-far: #DCEEDC;
+  --forest-hill-near: #CDE6CD;
+  --forest-ground: #E7F2E7;
+  --forest-ground-edge: #D9E6D9;
+  --forest-post: #B7A98F;
+  --forest-shadow: #0F172A;
+  --forest-shadow-opacity: 0.07;
+  --forest-label-bg: #FFFFFF;
+  --forest-label-border: #E2E8F0;
+  --forest-label-text: #475569;
+
+  /* Tailwind green 300→700. Depth of green is how far past goal the day went,
+     which is what the legend promises, so the ramp direction never flips. */
+  --forest-tone-0: #86EFAC;
+  --forest-tone-1: #4ADE80;
+  --forest-tone-2: #22C55E;
+  --forest-tone-3: #16A34A;
+  --forest-tone-4: #15803D;
+}
+
+.dark .forest-scene {
+  --forest-sky-top: #172759;
+  --forest-sky-bottom: #0E183A;
+  --forest-sun: #FDE68A;
+  --forest-hill-far: #14301F;
+  --forest-hill-near: #102A1A;
+  --forest-ground: #0D2416;
+  --forest-ground-edge: #1B3D28;
+  --forest-post: #6B6045;
+  --forest-shadow: #000000;
+  --forest-shadow-opacity: 0.22;
+  --forest-label-bg: #172033;
+  --forest-label-border: #334155;
+  --forest-label-text: #CBD5E1;
+
+  /* The canopy ramp is left alone. A dark ground is what changes, and green-700
+     still reads against it — inverting the ramp here would contradict the
+     legend sitting directly under the picture. */
+}
+
 /* Micro-interactions. Every animation opts out under `prefers-reduced-motion`. */
 @keyframes tutorex-breathe {
   0%, 100% { transform: scale(1); }
