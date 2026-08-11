@@ -15,6 +15,10 @@ import type { FriendDay, FriendEdge, FriendStats } from '~/types/database'
  *
  * Aggregates only, as ever: week total, seven day-squares, streak, goal days.
  * No topic, no title, no note — the RPCs do not return them.
+ *
+ * `remove` only asks — the page confirms before deleting anything. The button
+ * is icon-only and sits at the end of every row, so a straight-through click
+ * would unfriend someone on a mis-aim with no undo.
  */
 const props = defineProps<{
   edge: FriendEdge
@@ -72,20 +76,25 @@ function squareLabel(day: FriendDay): string {
   <div class="flex items-center gap-4 border-b border-muted px-5 py-3.5 transition last:border-b-0 hover:bg-muted/60">
     <!-- Friend -->
     <div class="flex w-[280px] min-w-0 items-center gap-2.5">
+      <!-- `md` is 32px. The prototype's circle is 34, and `sm` — what this had —
+           is 28, which made every row read a size lighter than the design. -->
       <UserAvatar
         :name="edge.display_name"
         :username="edge.username"
         :src="edge.avatar_url"
-        size="sm"
+        size="md"
       />
       <div class="min-w-0">
         <p class="flex items-center gap-1.5 truncate text-[13px] font-semibold text-highlighted">
           <span class="truncate">{{ name }}</span>
+          <!-- Pill, not the badge default's rounded rectangle: at this size the
+               square corners read as a second, competing label. -->
           <UBadge
             v-if="isNew"
             color="primary"
             variant="subtle"
             size="sm"
+            class="rounded-full"
           >
             New
           </UBadge>
@@ -144,7 +153,7 @@ function squareLabel(day: FriendDay): string {
       :class="stats ? 'flex-1' : 'shrink-0'"
     >
       <UButton
-        icon="i-lucide-user-minus"
+        icon="i-lucide-user-round-minus"
         color="neutral"
         variant="ghost"
         size="xs"

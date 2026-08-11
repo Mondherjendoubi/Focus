@@ -7,15 +7,15 @@ export default defineNuxtConfig({
     '@nuxt/ui'
   ],
 
+  // Every table is behind RLS keyed on auth.uid(), so the server has no
+  // session to query with. Rendering client-side keeps auth in one place.
+  ssr: false,
+
   devtools: {
     enabled: true
   },
 
   css: ['~/assets/css/main.css'],
-
-  // Every table is behind RLS keyed on auth.uid(), so the server has no
-  // session to query with. Rendering client-side keeps auth in one place.
-  ssr: false,
 
   runtimeConfig: {
     public: {
@@ -28,6 +28,8 @@ export default defineNuxtConfig({
     }
   },
 
+  compatibilityDate: '2026-06-30',
+
   // Static-site deploy target: emit the SPA shell + client bundle to
   // `<project>/dist/` so hosts that hard-code `dist/` (Cloudflare Pages,
   // most container builders) find the output where they expect it.
@@ -38,8 +40,6 @@ export default defineNuxtConfig({
       publicDir: fileURLToPath(new URL('./dist', import.meta.url))
     }
   },
-
-  compatibilityDate: '2026-06-30',
 
   eslint: {
     config: {

@@ -9,26 +9,29 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
+        # 22, not the 20 most of us run locally: ESLint 10 needs `Object.groupBy`,
+        # which landed in Node 21. On 20 `npm run lint` throws a TypeError before
+        # it reads a single rule, so the lint gate below only means anything here.
         node: [22]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v6
-
       - name: Install node
         uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
-          cache: pnpm
+          cache: npm
 
+      # `ci`, not `install`: it installs exactly what package-lock.json pins and
+      # fails if the two have drifted, instead of quietly resolving new versions.
+      # `postinstall` runs `nuxt prepare`, which the typecheck below needs.
       - name: Install dependencies
-        run: pnpm install
+        run: npm ci
 
       - name: Lint
-        run: pnpm run lint
+        run: npm run lint
 
       - name: Typecheck
-        run: pnpm run typecheck
+        run: npm run typecheck

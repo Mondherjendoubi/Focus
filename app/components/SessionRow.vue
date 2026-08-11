@@ -81,6 +81,12 @@ const statusMeta = computed<{ label: string, color: 'success' | 'primary' | 'war
     case 'abandoned':
       return { label: 'Abandoned', color: 'warning', icon: 'i-lucide-circle-x' }
   }
+
+  // Unreachable while `status` holds a `SessionStatus`, which is why TypeScript
+  // is happy without it. But the value comes from Postgres: add a fourth status
+  // to the enum and this computed returns `undefined`, and the template reads
+  // `.color` off it and takes the row down. Render the raw status instead.
+  return { label: props.session.status, color: 'warning', icon: 'i-lucide-circle-help' }
 })
 </script>
 

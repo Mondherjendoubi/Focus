@@ -76,7 +76,10 @@ async function onSubmit(event: FormSubmitEvent<typeof state>) {
       <div class="flex flex-col items-center gap-3 mb-6">
         <AppLogo />
       </div>
-      <UCard class="w-full" :ui="{ body: 'p-6 sm:p-8' }">
+      <UCard
+        class="w-full"
+        :ui="{ body: 'p-6 sm:p-8' }"
+      >
         <template
           v-if="!confirmationSent"
           #header

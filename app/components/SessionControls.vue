@@ -23,8 +23,8 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{
-  pause: []
-  resume: []
+  'pause': []
+  'resume': []
   'end-block': []
   'end-session': []
 }>()

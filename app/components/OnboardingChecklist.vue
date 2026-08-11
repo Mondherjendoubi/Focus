@@ -227,14 +227,20 @@ const shouldRender = computed(() => {
           class="shrink-0"
           :class="index === currentStepIndex ? 'rounded-lg ring-2 ring-primary/30 ring-offset-2 ring-offset-[color:var(--ui-bg)]' : ''"
         >
-          <div :key="step.done ? 'done' : 'todo'" class="animate-pop">
+          <div
+            :key="step.done ? 'done' : 'todo'"
+            class="animate-pop"
+          >
             <div
               v-if="step.done"
               class="flex size-8 items-center justify-center rounded-lg bg-primary text-white"
               :class="tokenRotation(index)"
               :aria-label="'Step ' + (index + 1) + ' completed'"
             >
-              <UIcon name="i-lucide-check" class="size-4" />
+              <UIcon
+                name="i-lucide-check"
+                class="size-4"
+              />
             </div>
             <div
               v-else

@@ -158,10 +158,12 @@ async function onAccept(edge: FriendEdge) {
   }
 }
 
-async function onRemove(edge: FriendEdge) {
+/** Returns whether the edge actually went away, so callers can stay open on failure. */
+async function onRemove(edge: FriendEdge): Promise<boolean> {
   busyId.value = edge.friendship_id
   try {
     await remove(edge.friendship_id)
+    return true
   } catch (err) {
     toast.add({
       title: 'Could not remove',
@@ -169,9 +171,34 @@ async function onRemove(edge: FriendEdge) {
       icon: 'i-lucide-triangle-alert',
       color: 'error'
     })
+    return false
   } finally {
     busyId.value = null
   }
+}
+
+// ---------------------------------------------------------------------------
+// Unfriending, confirmed
+// ---------------------------------------------------------------------------
+
+/**
+ * The friend awaiting confirmation, or null.
+ *
+ * Removal is a hard delete of the edge (`useFriends.remove` — there is no
+ * soft-delete on purpose, since a kept-but-declined row would keep granting the
+ * access it was meant to end), it is symmetric, and it is one icon-only button
+ * sitting at the end of every row. That combination needs a question in front
+ * of it; the same click on Decline or Cancel throws away a request, not a
+ * friendship, so those stay immediate.
+ */
+const removeTarget = ref<FriendEdge | null>(null)
+
+async function doRemove() {
+  const edge = removeTarget.value
+  if (edge === null) return
+  // Closed only on success: a failed delete has already toasted, and dropping
+  // the dialog too would leave the row on screen looking untouched.
+  if (await onRemove(edge)) removeTarget.value = null
 }
 
 function edgeName(edge: FriendEdge): string {
@@ -221,8 +248,10 @@ const showSent = ref(false)
             Pick a handle
           </UButton>
 
+          <!-- The prototype draws the round-head user glyphs throughout, so the
+               whole page uses `user-round-*` rather than mixing the two sets. -->
           <UButton
-            icon="i-lucide-user-plus"
+            icon="i-lucide-user-round-plus"
             size="sm"
             @click="openAdd"
           >
@@ -263,9 +292,13 @@ const showSent = ref(false)
           :name="edge.display_name"
           :username="edge.username"
           :src="edge.avatar_url"
-          size="sm"
+          size="md"
         />
-        <p class="min-w-0 flex-1 text-[13px] text-primary">
+        <!-- The prototype's banner text is blue-700, not the primary-500 this
+             had: on a blue-50 tint 500 lands under 4.5:1 at 13px. Dark mode
+             flips to the light end of the same ramp — `text-primary` there is
+             blue-400, which would be unreadable on a dark tint. -->
+        <p class="min-w-0 flex-1 text-[13px] text-primary-700 dark:text-primary-200">
           <strong class="font-semibold">{{ edgeName(edge) }}</strong>
           wants to follow your progress · sent {{ relativeTime(edge.created_at) }}
         </p>
@@ -304,7 +337,7 @@ const showSent = ref(false)
         icon="i-lucide-users"
         title="No friends yet"
         description="Add someone by their handle to compare weeks."
-        :action="{ label: 'Add friend', icon: 'i-lucide-user-plus', onClick: openAdd }"
+        :action="{ label: 'Add friend', icon: 'i-lucide-user-round-plus', onClick: openAdd }"
       />
 
       <!-- The table. Fixed column widths so numbers align down the page. -->
@@ -330,7 +363,7 @@ const showSent = ref(false)
             :days="days[edge.friend_id]"
             :is-new="isNewlyAccepted(edge)"
             :removing="busyId === edge.friendship_id"
-            @remove="onRemove"
+            @remove="removeTarget = $event"
           />
         </div>
       </div>
@@ -441,7 +474,7 @@ const showSent = ref(false)
                  action instead of letting them hit it. -->
             <UButton
               v-if="existing?.direction === 'incoming'"
-              icon="i-lucide-user-check"
+              icon="i-lucide-user-round-check"
               size="sm"
               :loading="busyId === existing.friendship_id"
               @click="onAccept(existing)"
@@ -462,7 +495,7 @@ const showSent = ref(false)
             </span>
             <UButton
               v-else
-              icon="i-lucide-user-plus"
+              icon="i-lucide-user-round-plus"
               size="sm"
               :loading="searching"
               @click="onSend"
@@ -484,6 +517,44 @@ const showSent = ref(false)
             </p>
           </div>
         </form>
+      </template>
+    </UModal>
+
+    <!-- Unfriending is a hard delete and it cuts both ways, so it gets asked
+         about. Same shape as the archive confirm on /topics. -->
+    <UModal
+      :open="removeTarget !== null"
+      title="Remove this friend?"
+      :ui="{ content: 'sm:max-w-md' }"
+      @update:open="(v) => { if (!v) removeTarget = null }"
+    >
+      <template #body>
+        <p class="text-sm text-default">
+          <strong>{{ removeTarget ? edgeName(removeTarget) : '' }}</strong>
+          will stop seeing your weekly total, streak and goal days, and you'll
+          stop seeing theirs. Nothing either of you has studied is deleted — but
+          there's no undo, so one of you would have to send a new request.
+        </p>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton
+            color="neutral"
+            variant="ghost"
+            :disabled="busyId !== null"
+            @click="removeTarget = null"
+          >
+            Cancel
+          </UButton>
+          <UButton
+            color="error"
+            icon="i-lucide-user-round-minus"
+            :loading="busyId === removeTarget?.friendship_id"
+            @click="doRemove"
+          >
+            Remove
+          </UButton>
+        </div>
       </template>
     </UModal>
   </UContainer>

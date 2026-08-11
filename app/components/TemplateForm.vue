@@ -143,7 +143,7 @@ function onSubmit(_event: FormSubmitEvent<typeof state>) {
     >
       <UInput
         v-model="state.name"
-        placeholder='e.g. Pomodoro ×4, Deep Work 90'
+        placeholder="e.g. Pomodoro ×4, Deep Work 90"
         :disabled="submitting"
         class="w-full"
         autofocus

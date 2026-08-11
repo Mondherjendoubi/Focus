@@ -192,7 +192,7 @@ const previewTopic = computed(() => ({
     <UFormField
       label="Icon"
       name="icon"
-      help='Optional. Lucide icon name, e.g. "i-lucide-book-open".'
+      help="Optional. Lucide icon name, e.g. &quot;i-lucide-book-open&quot;."
     >
       <UInput
         v-model="state.icon"
@@ -236,4 +236,3 @@ const previewTopic = computed(() => ({
     </div>
   </UForm>
 </template>
-

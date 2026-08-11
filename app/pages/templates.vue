@@ -270,18 +270,24 @@ const isEmpty = computed(() => loaded.value && !error.value && active.value.leng
 
                 <dl class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted tabular-nums">
                   <div class="flex items-center gap-1">
-                    <dt class="sr-only">Blocks</dt>
+                    <dt class="sr-only">
+                      Blocks
+                    </dt>
                     <dd>{{ totals.get(template.id)?.block_count ?? 0 }} blocks</dd>
                   </div>
                   <div class="flex items-center gap-1">
-                    <dt class="sr-only">Focus time</dt>
+                    <dt class="sr-only">
+                      Focus time
+                    </dt>
                     <dd>
                       <span class="text-highlighted font-medium">{{ formatDuration(totals.get(template.id)?.planned_focus_seconds ?? 0) }}</span>
                       focus
                     </dd>
                   </div>
                   <div class="flex items-center gap-1">
-                    <dt class="sr-only">Total time</dt>
+                    <dt class="sr-only">
+                      Total time
+                    </dt>
                     <dd>{{ formatDuration(totals.get(template.id)?.planned_seconds ?? 0) }} total</dd>
                   </div>
                 </dl>

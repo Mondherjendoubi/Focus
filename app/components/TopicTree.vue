@@ -17,8 +17,8 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  edit: [topic: Topic]
-  archive: [topic: Topic]
+  'edit': [topic: Topic]
+  'archive': [topic: Topic]
   'move-up': [topic: Topic]
   'move-down': [topic: Topic]
 }>()

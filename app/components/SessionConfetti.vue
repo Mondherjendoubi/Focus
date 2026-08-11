@@ -79,7 +79,7 @@ onMounted(() => {
         '--tx': `${p.tx}px`,
         '--ty': `${p.ty}px`,
         '--rot': `${p.rot}deg`,
-        animationDelay: `${p.delay}ms`
+        'animationDelay': `${p.delay}ms`
       }"
     />
   </svg>
