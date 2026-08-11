@@ -1,4 +1,4 @@
-import type { DailyTotal, LocalDay } from '~/types/database'
+import type { DailyTopicTotal, DailyTotal, LocalDay } from '~/types/database'
 
 /**
  * The forest (FA-023): one tree per day the daily goal was cleared.
@@ -19,6 +19,13 @@ import type { DailyTotal, LocalDay } from '~/types/database'
 /** What one day contributes to the scene. */
 export type DayKind = 'tree' | 'seedling' | 'bare'
 
+/** One topic's share of a day, for the hover card. */
+export interface ForestDayTopic {
+  name: string
+  color: string | null
+  seconds: number
+}
+
 export interface ForestDay {
   localDay: LocalDay
   kind: DayKind
@@ -28,6 +35,10 @@ export interface ForestDay {
   /** True on the first day of its month — where a scene draws the month marker. */
   monthStart: boolean
   monthName: string
+  sessionCount: number
+  interruptions: number
+  /** Biggest share first. Empty until the topic rows land. */
+  topics: ForestDayTopic[]
 }
 
 /** PostgREST sends bigint as a string, and `focus_seconds` is null on a break-only day. */
@@ -40,7 +51,12 @@ function num(value: unknown): number {
   return 0
 }
 
-type ForestRow = Pick<DailyTotal, 'local_day' | 'focus_seconds' | 'goal_minutes' | 'goal_met'>
+type ForestRow = Pick<
+  DailyTotal,
+  'local_day' | 'focus_seconds' | 'goal_minutes' | 'goal_met' | 'session_count' | 'interruptions'
+>
+
+type TopicRow = Pick<DailyTopicTotal, 'local_day' | 'topic_name' | 'topic_color' | 'focus_seconds'>
 
 /**
  * Whether a day earned a tree.
@@ -89,27 +105,48 @@ export function useForest() {
     goalMinutes.value = num(profileRes.data.daily_goal_minutes)
     today.value = todayLocalDay(profileRes.data.timezone)
 
-    const { data, error: err } = await supabase
-      .from('v_daily_totals')
-      .select('local_day, focus_seconds, goal_minutes, goal_met')
-      .order('local_day', { ascending: true })
+    // Both in one trip. The topic split only exists for days with focus — which
+    // is exactly the set of days that draw a mark you can hover — so this adds
+    // no rows for the rest days that make up most of a long history.
+    const [dailyRes, topicRes] = await Promise.all([
+      supabase
+        .from('v_daily_totals')
+        .select('local_day, focus_seconds, goal_minutes, goal_met, session_count, interruptions')
+        .order('local_day', { ascending: true }),
+      supabase
+        .from('v_daily_topic_totals')
+        .select('local_day, topic_name, topic_color, focus_seconds')
+    ])
 
-    if (err) {
+    if (dailyRes.error ?? topicRes.error) {
       // Surfaced, never swallowed. RLS hands back `[]` for a failed query, which
       // is indistinguishable from a new account — and telling someone with a
       // year of history that their forest is empty is the worst thing this page
       // could do.
-      error.value = toMessage(err)
+      error.value = toMessage(dailyRes.error ?? topicRes.error)
       pending.value = false
       return
     }
 
-    build((data ?? []) as ForestRow[])
+    build((dailyRes.data ?? []) as ForestRow[], (topicRes.data ?? []) as TopicRow[])
     pending.value = false
   }
 
-  function build(rows: ForestRow[]) {
+  function build(rows: ForestRow[], topicRows: TopicRow[]) {
     const byDay = new Map(rows.map(row => [row.local_day, row]))
+
+    // Topic rows arrive one per (day, topic). Collapse to a per-day list,
+    // biggest share first, so the card can render its top few without sorting
+    // on every hover.
+    const topicsByDay = new Map<string, ForestDayTopic[]>()
+    for (const row of topicRows) {
+      const seconds = num(row.focus_seconds)
+      if (seconds <= 0) continue
+      const list = topicsByDay.get(row.local_day) ?? []
+      list.push({ name: row.topic_name ?? 'No topic', color: row.topic_color, seconds })
+      topicsByDay.set(row.local_day, list)
+    }
+    for (const list of topicsByDay.values()) list.sort((a, b) => b.seconds - a.seconds)
 
     // The forest starts at the first day with any row, not at signup: a
     // long-dormant account should not open on a wall of empty months.
@@ -170,7 +207,10 @@ export function useForest() {
           // is never a tree anyway, so the ratio it would never use stays 0.
           ratio: goal > 0 ? focusSeconds / (goal * 60) : 0,
           monthStart: out.length === 0 || out[out.length - 1]!.localDay.slice(0, 7) !== key,
-          monthName: name
+          monthName: name,
+          sessionCount: num(row?.session_count),
+          interruptions: num(row?.interruptions),
+          topics: topicsByDay.get(localDay) ?? []
         })
       }
 

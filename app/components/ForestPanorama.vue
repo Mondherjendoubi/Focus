@@ -87,10 +87,20 @@ const hillNear = computed(() => hillPath(308, 20, 960, 20))
 
 /** Kept off the right edge so the glow never clips. */
 const sunX = computed(() => Math.max(120, scene.value.width - 160))
+
+// The host is the OUTER card, not the scrolling strip: anchoring against a
+// non-scrolling frame is what lets the card sit over the card's own padding
+// without being clipped by `overflow-x-auto`.
+const host = useTemplateRef<HTMLElement>('host')
+const dayList = computed(() => props.days)
+const { active, cardStyle, onPointerOver, onPointerLeave, onClick } = useForestHover(dayList, host)
 </script>
 
 <template>
-  <div class="forest-scene overflow-hidden rounded-[14px] border border-default bg-default shadow-sm">
+  <div
+    ref="host"
+    class="forest-scene relative overflow-hidden rounded-[14px] border border-default bg-default shadow-sm"
+  >
     <!-- The picture scrolls, the legend under it does not. -->
     <div class="overflow-x-auto">
       <svg
@@ -99,6 +109,9 @@ const sunX = computed(() => Math.max(120, scene.value.width - 160))
         class="block h-auto"
         role="img"
         aria-label="Your forest — one tree for every day you cleared your daily goal"
+        @pointerover="onPointerOver"
+        @pointerleave="onPointerLeave"
+        @click="onClick"
       >
         <defs>
           <linearGradient
@@ -202,6 +215,13 @@ const sunX = computed(() => Math.max(120, scene.value.width - 160))
       </svg>
     </div>
 
+    <ForestDayCard
+      v-if="active"
+      :day="active"
+      class="absolute z-10"
+      :style="cardStyle"
+    />
+
     <div class="flex flex-wrap items-center gap-x-[18px] gap-y-2 border-t border-muted px-5 py-3 text-xs text-muted">
       <span class="flex items-center gap-[7px]">
         <span class="size-[9px] rounded-[2px] bg-[var(--forest-tone-2)]" />
@@ -215,7 +235,7 @@ const sunX = computed(() => Math.max(120, scene.value.width - 160))
         <span class="size-[9px] rounded-[2px] border border-[var(--forest-ground-edge)] bg-[var(--forest-ground)]" />
         rest day
       </span>
-      <span class="ml-auto">deeper green = further past goal · hover a tree for the day</span>
+      <span class="ml-auto">deeper green = further past goal · hover a tree for that day's breakdown</span>
     </div>
   </div>
 </template>

@@ -70,15 +70,27 @@ const trailPath = computed(() => {
   }
   return points.join(' ')
 })
+
+// Tap rather than hover here — `useForestHover` routes touch through its click
+// handler, so the card toggles and a second tap dismisses it.
+const host = useTemplateRef<HTMLElement>('host')
+const dayList = computed(() => props.days)
+const { active, cardStyle, onPointerOver, onPointerLeave, onClick } = useForestHover(dayList, host)
 </script>
 
 <template>
-  <div class="forest-scene">
+  <div
+    ref="host"
+    class="forest-scene relative"
+  >
     <svg
       :viewBox="`0 0 ${WIDTH} ${scene.height}`"
       class="block h-auto w-full"
       role="img"
       aria-label="Your forest trail, newest at the top"
+      @pointerover="onPointerOver"
+      @pointerleave="onPointerLeave"
+      @click="onClick"
     >
       <!-- Two strokes make the path: the bed, then a dashed centre line over it. -->
       <path
@@ -132,5 +144,12 @@ const trailPath = computed(() => {
         :just-planted="mark.day.localDay === today"
       />
     </svg>
+
+    <ForestDayCard
+      v-if="active"
+      :day="active"
+      class="absolute z-10"
+      :style="cardStyle"
+    />
   </div>
 </template>

@@ -36,17 +36,26 @@ const tone = computed(() =>
   isTree.value ? `var(--forest-tone-${treeToneIndex(treeStrength(props.day.ratio))})` : 'var(--forest-tone-1)'
 )
 
-const label = computed(() => {
-  const when = `${dayLabel(props.day.localDay)} ${props.day.localDay}`
-  const outcome = isTree.value ? 'goal met' : 'short of goal'
-  return `${when} — ${formatDuration(props.day.focusSeconds)}, ${outcome}`
-})
+/**
+ * The hover target. The scene puts ONE delegated listener on its `<svg>` and
+ * resolves the mark from this attribute, so a forest with hundreds of trees
+ * still has a single listener.
+ *
+ * `<title>` used to live here for the native tooltip. It is gone deliberately:
+ * the rich card would otherwise be shadowed a second later by the browser's own
+ * one-line version of the same thing. Nothing is lost to assistive tech — the
+ * scene's `<svg>` carries `role="img"`, so these inner titles were never
+ * announced in the first place.
+ */
+const hitbox = computed(() => props.day.localDay)
 </script>
 
 <template>
   <g
     v-if="tree"
+    :data-day="hitbox"
     :fill="tone"
+    class="cursor-pointer"
     :class="justPlanted ? 'animate-grow' : ''"
     :style="justPlanted ? { transformOrigin: `${x}px ${groundY}px` } : undefined"
   >
@@ -58,7 +67,6 @@ const label = computed(() => {
       fill="var(--forest-shadow)"
       :opacity="`var(--forest-shadow-opacity)`"
     />
-    <title>{{ label }}</title>
 
     <template v-if="tree.species === 'deciduous'">
       <path :d="tree.trunk" />
@@ -96,12 +104,22 @@ const label = computed(() => {
 
   <g
     v-else-if="seedling"
+    :data-day="hitbox"
     :stroke="tone"
     :stroke-width="seedling.strokeWidth"
     stroke-linecap="round"
     fill="none"
+    class="cursor-pointer"
   >
-    <title>{{ label }}</title>
+    <!-- A seedling is a thin stroke, so the stroke itself is a poor target.
+         This invisible disc gives it the same reach as a small tree. -->
+    <circle
+      :cx="x"
+      :cy="groundY - 6 * scale"
+      :r="11 * scale"
+      fill="transparent"
+      stroke="none"
+    />
     <ellipse
       :cx="x"
       :cy="groundY"
