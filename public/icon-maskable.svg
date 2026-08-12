@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="tutorex">
+  <!-- Maskable variant. Two differences from icon.svg, both required by the spec:
+       the background is a full-bleed square because the platform supplies the
+       shape (a circle on Pixel, a squircle on Samsung, a rounded square
+       elsewhere), and the glyph is scaled ×9.5 instead of ×12 so it stays inside
+       the safe zone — the centre circle of 80% diameter, radius 204.8. At this
+       size the glyph's furthest corner is 131 from centre.
+       The old manifest pointed `purpose: maskable` at the same file as `any`,
+       which is how a rounded icon gets its corners cropped off again. -->
+  <defs>
+    <linearGradient id="tutorex-bg-maskable" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3565F5"/>
+      <stop offset="1" stop-color="#2148D9"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" fill="url(#tutorex-bg-maskable)"/>
+
+  <g transform="translate(137.25 142) scale(9.5)" fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+    <path d="m9 11l-6 6v3h9l3-3"/>
+    <path d="m22 12l-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/>
+  </g>
+</svg>

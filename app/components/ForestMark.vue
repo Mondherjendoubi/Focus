@@ -32,9 +32,21 @@ const seedling = computed(() =>
 )
 
 /** `--forest-tone-0` … `-4`. Seedlings are always tone 1, however short they fell. */
+const toneIndex = computed(() => treeToneIndex(treeStrength(props.day.ratio)))
+
 const tone = computed(() =>
-  isTree.value ? `var(--forest-tone-${treeToneIndex(treeStrength(props.day.ratio))})` : 'var(--forest-tone-1)'
+  isTree.value ? `var(--forest-tone-${toneIndex.value})` : 'var(--forest-tone-1)'
 )
+
+/**
+ * The outline colour, two ramp steps darker than the canopy (FA-027).
+ *
+ * Canopies overlap by roughly half, so without an edge a run of same-tone days
+ * merges into one shape. Scaled with the mark so it holds at the panorama's
+ * scale 1, the trail's 0.912 and the welcome hero's 3.4.
+ */
+const edge = computed(() => `var(--forest-edge-${toneIndex.value})`)
+const edgeWidth = computed(() => 1.7 * props.scale)
 
 /**
  * The hover target. The scene puts ONE delegated listener on its `<svg>` and
@@ -54,7 +66,6 @@ const hitbox = computed(() => props.day.localDay)
   <g
     v-if="tree"
     :data-day="hitbox"
-    :fill="tone"
     class="cursor-pointer"
     :class="justPlanted ? 'animate-grow' : ''"
     :style="justPlanted ? { transformOrigin: `${x}px ${groundY}px` } : undefined"
@@ -68,38 +79,52 @@ const hitbox = computed(() => props.day.localDay)
       :opacity="`var(--forest-shadow-opacity)`"
     />
 
-    <template v-if="tree.species === 'deciduous'">
-      <path :d="tree.trunk" />
-      <circle
-        v-for="(blob, i) in tree.blobs"
-        :key="i"
-        :cx="blob.cx"
-        :cy="blob.cy"
-        :r="blob.r"
-      />
-    </template>
+    <!-- Drawn twice (FA-027): pass 1 strokes the same shapes in the edge colour
+         to lay down a silhouette one half-stroke wider than the tree, pass 2
+         fills over it. Stroking each shape once instead would also outline the
+         seams where a canopy's own lobes overlap, which draws a bag of circles
+         rather than a canopy — pass 2's fills are what hide those. -->
+    <g
+      v-for="pass in 2"
+      :key="pass"
+      :fill="pass === 1 ? edge : tone"
+      :stroke="pass === 1 ? edge : undefined"
+      :stroke-width="pass === 1 ? edgeWidth : undefined"
+      stroke-linejoin="round"
+    >
+      <template v-if="tree.species === 'deciduous'">
+        <path :d="tree.trunk" />
+        <circle
+          v-for="(blob, i) in tree.blobs"
+          :key="i"
+          :cx="blob.cx"
+          :cy="blob.cy"
+          :r="blob.r"
+        />
+      </template>
 
-    <template v-else>
-      <rect
-        :x="tree.post!.x"
-        :y="tree.post!.y"
-        :width="tree.post!.width"
-        :height="tree.post!.height"
-      />
-      <!-- Conifer: three tiers, top drawn first so the wider ones below overlap it. -->
-      <path
-        v-for="(tier, i) in tree.tiers ?? []"
-        :key="i"
-        :d="tier"
-      />
-      <ellipse
-        v-if="tree.crown"
-        :cx="tree.crown.cx"
-        :cy="tree.crown.cy"
-        :rx="tree.crown.rx"
-        :ry="tree.crown.ry"
-      />
-    </template>
+      <template v-else>
+        <rect
+          :x="tree.post!.x"
+          :y="tree.post!.y"
+          :width="tree.post!.width"
+          :height="tree.post!.height"
+        />
+        <!-- Conifer: three tiers, top drawn first so the wider ones below overlap it. -->
+        <path
+          v-for="(tier, i) in tree.tiers ?? []"
+          :key="i"
+          :d="tier"
+        />
+        <ellipse
+          v-if="tree.crown"
+          :cx="tree.crown.cx"
+          :cy="tree.crown.cy"
+          :rx="tree.crown.rx"
+          :ry="tree.crown.ry"
+        />
+      </template>
+    </g>
   </g>
 
   <g

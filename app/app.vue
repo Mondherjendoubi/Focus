@@ -16,7 +16,12 @@ useHead({
     lang: 'en'
   },
   link: [
-    { rel: 'icon', href: '/favicon.ico' },
+    // SVG first — browsers that understand it take it and scale it crisply at
+    // any tab size. The 32px PNG covers the rest, and `favicon.ico` stays last
+    // because browsers request `/favicon.ico` whether it is declared or not.
+    { rel: 'icon', type: 'image/svg+xml', href: '/icon.svg' },
+    { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32x32.png' },
+    { rel: 'icon', href: '/favicon.ico', sizes: '32x32' },
     { rel: 'apple-touch-icon', href: '/apple-touch-icon.png', sizes: '180x180' },
     // PWA — Android reads the manifest for name/icons/theme/display when the
     // user chooses "Add to Home Screen". iOS ignores the manifest and uses

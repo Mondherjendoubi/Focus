@@ -61,15 +61,25 @@ function makeRng(seed: number): () => number {
 }
 
 /**
- * How far past the goal a day went, flattened to 0…1.
+ * How far past the goal a day went, flattened to 0…1. Drives both the canopy
+ * tone and the tree's size.
  *
- * 0 is landing exactly on the goal and 1 is 2.5× it — confirmed against the
- * handoff, where the largest tree (`S = 20.3`) appears at exactly 2.5× and
- * nothing beyond it grows further. Without the cap one enormous day would
- * dwarf a whole year of ordinary ones.
+ * **Logarithmic, saturating at 1.9× (FA-027).** The handoff's version was linear
+ * to 2.5×, which gave each of the five greens a 30%-of-goal band — wider than
+ * the spread of an entire real month. Days cluster within roughly ±25% of goal,
+ * so every ordinary day landed in the first band at the smallest size, and a
+ * month rendered as one flat green mass. Compressing the top end and curving the
+ * bottom spends the ramp where the days actually are.
+ *
+ * Still monotonic and still capped, which is what the legend under the picture
+ * promises: deeper and bigger always means further past goal, and one enormous
+ * day cannot dwarf a whole year of ordinary ones.
  */
+const STRENGTH_CEILING = Math.log(1.9)
+
 export function treeStrength(ratio: number): number {
-  return Math.max(0, Math.min(1, (ratio - 1) / 1.5))
+  if (ratio <= 1) return 0
+  return Math.min(1, Math.log(ratio) / STRENGTH_CEILING)
 }
 
 /** Five greens, `--forest-tone-0` … `-4`. Index confirmed as `floor(strength × 5)`. */

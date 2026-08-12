@@ -56,6 +56,18 @@
   --forest-tone-2: #22C55E;
   --forest-tone-3: #16A34A;
   --forest-tone-4: #15803D;
+
+  /* FA-027 — one edge per tone, two Tailwind steps darker, for the outline
+     `ForestMark` draws under each tree. Canopies overlap by half a canopy by
+     design, and without an edge the overlap has nothing to read against: a
+     month of similar days rendered as a single green shape. Darker green rather
+     than the background colour, because what sits behind a canopy is sometimes
+     sky, sometimes hill and usually another tree. */
+  --forest-edge-0: #22C55E;
+  --forest-edge-1: #16A34A;
+  --forest-edge-2: #15803D;
+  --forest-edge-3: #166534;
+  --forest-edge-4: #14532D;
 }
 
 .dark .forest-scene {
