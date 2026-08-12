@@ -142,8 +142,13 @@ useHead({
       <AppSidebar class="hidden lg:flex" />
 
       <div class="flex min-w-0 flex-1 flex-col">
+        <!-- FA-026 — no `#body`, and so no hamburger: navigation moved to the
+             bottom bar. `:toggle="false"` is belt and braces, since the toggle
+             is what used to open the slideover this replaces. What stays here
+             is identity, not navigation — Settings and Sign out live in
+             `UserMenu` and are deliberately not tabs. -->
         <UHeader
-          v-model:open="mobileOpen"
+          :toggle="false"
           class="lg:hidden"
         >
           <template #left>
@@ -160,20 +165,23 @@ useHead({
             <UColorModeButton />
             <UserMenu />
           </template>
-
-          <template #body>
-            <AppNav orientation="vertical" />
-          </template>
         </UHeader>
 
         <!-- No footer inside the app shell: the prototype's main column runs
              to the bottom of the viewport, and a copyright bar under a running
              timer is chrome the design deliberately does not have. The signed
-             -out shell below keeps it. -->
-        <UMain class="flex-1">
+             -out shell below keeps it.
+             The padding clears the fixed tab bar — without it every page's last
+             element sits under it, the Focus controls included. It carries the
+             safe-area inset because the bar does: a flat `pb-20` covers the
+             bar's 57px on Android but not the 91px it becomes once iOS adds 34px
+             for the home indicator. -->
+        <UMain class="flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-0">
           <NuxtPage />
         </UMain>
       </div>
+
+      <AppTabBar />
     </div>
 
     <!-- Signed out, or auth still resolving: no navigation to show, so the

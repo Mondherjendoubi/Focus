@@ -9,8 +9,9 @@
  * an otherwise transparent row. Reproducing a filled pill through its theme
  * slots meant overriding more of it than writing the six lines below.
  *
- * Both call sites are vertical now — the desktop sidebar and the mobile
- * slideover — so there is a single shape to get right.
+ * Since FA-026 this is the desktop rail only — the mobile slideover it used to
+ * share with is gone, replaced by `AppTabBar`. The items themselves live in
+ * `app/utils/nav.ts` so the two navigations cannot drift apart.
  */
 defineProps<{
   orientation?: 'horizontal' | 'vertical'
@@ -27,21 +28,10 @@ const { incomingCount, loaded, loadEdges } = useFriends()
 
 if (!loaded.value) void loadEdges()
 
-const items = [
-  { label: 'Focus', to: '/', icon: 'i-lucide-timer' },
-  { label: 'Dashboard', to: '/dashboard', icon: 'i-lucide-chart-column' },
-  { label: 'Topics', to: '/topics', icon: 'i-lucide-tags' },
-  { label: 'History', to: '/history', icon: 'i-lucide-history' },
-  { label: 'Forest', to: '/forest', icon: 'i-lucide-trees' },
-  { label: 'Friends', to: '/friends', icon: 'i-lucide-users' }
-] as const
+const items = NAV_ITEMS
 
-/**
- * `/` has to match exactly. A `startsWith` test would light up Focus on every
- * route in the app, which is how "active" stops meaning anything.
- */
 function isActive(to: string): boolean {
-  return to === '/' ? route.path === '/' : route.path.startsWith(to)
+  return isNavActive(route.path, to)
 }
 </script>
 
