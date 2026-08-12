@@ -350,6 +350,7 @@ const milestones = ref<Milestone[]>([])
 
 function openEndPrompt() {
   endRating.value = null
+  hoverRating.value = null
   endNotes.value = ''
   // Ending the session answers "start the next block?" by itself. Leaving that
   // prompt open would stack it behind this one, and behind the milestone modal
@@ -404,6 +405,25 @@ async function finishSession(status: SessionStatus) {
 }
 
 const ratingOptions = [1, 2, 3, 4, 5]
+const ratingLabels: Record<number, string> = {
+  1: 'Scattered',
+  2: 'Patchy',
+  3: 'Steady',
+  4: 'Sharp',
+  5: 'Locked in'
+}
+
+// Hovering previews the whole run of stars it would select, the same way the
+// committed rating renders. Null means "not hovering", which falls back to the
+// stored value rather than to zero.
+const hoverRating = ref<number | null>(null)
+const shownRating = computed(() => hoverRating.value ?? endRating.value)
+
+// Every star up to the active one is filled, not just the one clicked — a lone
+// highlighted fourth star reads as "the 4 button", not as a rating of 4.
+function isRatingFilled(n: number) {
+  return shownRating.value !== null && shownRating.value >= n
+}
 
 const renderState = computed<'idle' | 'ready' | 'running' | 'stale'>(() => {
   if (session.value === null) return 'idle'
@@ -858,9 +878,10 @@ const timerAnnouncement = computed(() => {
               Optional - skip if you are not sure.
             </p>
             <div
-              class="mt-3 flex items-center gap-2"
+              class="mt-3 flex items-center gap-1"
               role="radiogroup"
               aria-label="Focus rating from 1 to 5"
+              @mouseleave="hoverRating = null"
             >
               <button
                 v-for="n in ratingOptions"
@@ -868,20 +889,27 @@ const timerAnnouncement = computed(() => {
                 type="button"
                 role="radio"
                 :aria-checked="endRating === n"
-                :aria-label="`${n} out of 5`"
-                class="flex size-10 items-center justify-center rounded-full border transition"
-                :class="endRating === n
-                  ? 'border-primary bg-primary text-inverted'
-                  : 'border-default text-muted hover:border-primary hover:text-primary'"
+                :aria-label="`${n} out of 5 - ${ratingLabels[n]}`"
+                class="flex size-10 items-center justify-center rounded-full transition"
+                :class="isRatingFilled(n)
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-dimmed hover:text-primary'"
+                @mouseenter="hoverRating = n"
+                @focus="hoverRating = n"
+                @blur="hoverRating = null"
                 @click="endRating = endRating === n ? null : n"
               >
                 <UIcon
                   name="i-lucide-star"
-                  class="size-5"
-                  :class="endRating !== null && endRating >= n ? 'fill-current' : ''"
+                  mode="svg"
+                  class="size-6 transition"
+                  :class="isRatingFilled(n) ? 'fill-current' : 'fill-transparent'"
                 />
               </button>
             </div>
+            <p class="mt-2 h-4 text-xs font-medium text-muted">
+              {{ shownRating !== null ? ratingLabels[shownRating] : '' }}
+            </p>
           </div>
 
           <UFormField
