@@ -153,10 +153,12 @@ export default defineNuxtConfig({
     public: {
       supabaseUrl: process.env.SUPABASE_URL,
       supabaseKey: process.env.SUPABASE_KEY,
-      // Absolute site URL — used to build canonical + og:image URLs
-      // so social crawlers (Facebook, LinkedIn, Twitter) can find them.
-      // Set PUBLIC_SITE_URL on the deploy platform to your live domain.
-      siteUrl: process.env.PUBLIC_SITE_URL ?? 'http://localhost:3000'
+      // Runtime mirror of the same env var `app.head` above bakes into the
+      // shell. Nothing reads it today — the canonical and og:* URLs are
+      // build-time constants now, because `ssr: false` keeps runtimeConfig
+      // out of the prerendered HTML. Kept for share/invite links, which are
+      // built in the browser and so can resolve it at runtime.
+      siteUrl
     }
   },
 
