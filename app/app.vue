@@ -2,78 +2,24 @@
 const { isLoggedIn, ready } = useAuth()
 
 const title = 'tutorex'
-const description = 'Your study buddy — start a focus session, keep your streak, see where your time actually goes.'
-const siteName = 'tutorex'
 
-// Absolute URLs for social crawlers (Facebook, LinkedIn, Twitter).
-// Relative paths often fail to preview — Facebook has been strict about
-// requiring fully-qualified URLs for og:image and og:url.
-const siteUrl = useRuntimeConfig().public.siteUrl.replace(/\/$/, '')
-const ogImageUrl = `${siteUrl}/og-image.png`
-
+/**
+ * The static head — title, description, og:*, icons, manifest, theme-color —
+ * lives in `nuxt.config.ts` under `app.head`, NOT here.
+ *
+ * `ssr: false` means this file's setup never runs on the server, so anything
+ * registered below is invisible to `nuxt generate` and never reaches
+ * `dist/index.html`. Crawlers and the first tab paint both read that shell.
+ * Moving a tag back into this file silently removes it from the shipped HTML
+ * while still looking correct in a browser devtools inspector, because the
+ * bundle injects it a moment after load.
+ *
+ * What stays here is what CANNOT be static: `titleTemplate` is a function
+ * (`app.head` is serialised at build time and cannot hold one), and the timer
+ * clock below changes every second.
+ */
 useHead({
-  htmlAttrs: {
-    lang: 'en'
-  },
-  link: [
-    // SVG first — browsers that understand it take it and scale it crisply at
-    // any tab size. The 32px PNG covers the rest, and `favicon.ico` stays last
-    // because browsers request `/favicon.ico` whether it is declared or not.
-    { rel: 'icon', type: 'image/svg+xml', href: '/icon.svg' },
-    { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32x32.png' },
-    { rel: 'icon', href: '/favicon.ico', sizes: '32x32' },
-    { rel: 'apple-touch-icon', href: '/apple-touch-icon.png', sizes: '180x180' },
-    // PWA — Android reads the manifest for name/icons/theme/display when the
-    // user chooses "Add to Home Screen". iOS ignores the manifest and uses
-    // the apple-* meta tags below instead.
-    { rel: 'manifest', href: '/site.webmanifest' }
-  ],
-  meta: [
-    // Stop iOS from linkifying the timer digits ("25:00" → phone number).
-    { name: 'format-detection', content: 'telephone=no' },
-    // iOS home-screen: launch full-screen (no Safari chrome), set the label
-    // and the status-bar look. Android/Chrome uses the manifest instead.
-    { name: 'apple-mobile-web-app-capable', content: 'yes' },
-    { name: 'apple-mobile-web-app-title', content: 'tutorex' },
-    { name: 'apple-mobile-web-app-status-bar-style', content: 'default' },
-    { name: 'mobile-web-app-capable', content: 'yes' }
-  ]
-})
-
-useSeoMeta({
-  title,
-  titleTemplate: (t?: string) => (t && t !== title ? `${t} · ${title}` : title),
-  description,
-  viewport: 'width=device-width, initial-scale=1, viewport-fit=cover',
-  // Match the header chrome on mobile browsers to the app theme.
-  themeColor: [
-    { content: '#EEF4FF', media: '(prefers-color-scheme: light)' },
-    { content: '#0E183A', media: '(prefers-color-scheme: dark)' }
-  ],
-  robots: 'index, follow',
-  applicationName: siteName,
-  author: 'tutorex',
-
-  ogSiteName: siteName,
-  ogType: 'website',
-  ogLocale: 'en_US',
-  ogTitle: title,
-  ogDescription: description,
-  ogUrl: siteUrl,
-  ogImage: {
-    url: ogImageUrl,
-    width: 1200,
-    height: 630,
-    alt: 'tutorex — your study buddy',
-    type: 'image/png'
-  },
-
-  // Large image card requires an og:image / twitter:image ≥ 300×157.
-  // Downgrade to 'summary' if you use a smaller image.
-  twitterCard: 'summary_large_image',
-  twitterTitle: title,
-  twitterDescription: description,
-  twitterImage: ogImageUrl
+  titleTemplate: (t?: string) => (t && t !== title ? `${t} · ${title}` : title)
 })
 
 // Mirror the header nav into the mobile slideover; render nothing before
